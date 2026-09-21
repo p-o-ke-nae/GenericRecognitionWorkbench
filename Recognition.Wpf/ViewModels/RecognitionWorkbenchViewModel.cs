@@ -57,7 +57,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
     private double lastFps;
     private readonly object pendingResultLock = new();
     private readonly IReadOnlyDictionary<string, IPreviewModule> previewModules;
-    private RecognitionCycleResult? pendingUiResult;
+    private readonly RecognitionResultCoalescer pendingResults = new();
     private Point? previewCursorPoint;
     private bool uiUpdateScheduled;
     private LocalizedChoice<UiLanguage>? selectedLanguageOption;
@@ -1450,7 +1450,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
     {
         lock (pendingResultLock)
         {
-            pendingUiResult = e;
+            pendingResults.Enqueue(e);
             if (uiUpdateScheduled)
             {
                 return;
@@ -2049,27 +2049,24 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         while (true)
         {
             RecognitionCycleResult? resultToApply;
+            bool backlogWarning;
             lock (pendingResultLock)
             {
-                resultToApply = pendingUiResult;
-                pendingUiResult = null;
-                if (resultToApply is null)
+                backlogWarning = pendingResults.TakeBacklogWarning();
+                if (!pendingResults.TryDequeue(out resultToApply))
                 {
                     uiUpdateScheduled = false;
                     return;
                 }
+            }
+
+            if (backlogWarning)
+            {
+                RecordError("Recognition Event Backlog", new InvalidOperationException(
+                    $"Pending recognition events exceeded {RecognitionResultCoalescer.EventBacklogWarningThreshold}. Events were retained; the UI or event handlers may be too slow."));
             }
 
             ApplyResult(resultToApply);
-
-            lock (pendingResultLock)
-            {
-                if (pendingUiResult is null)
-                {
-                    uiUpdateScheduled = false;
-                    return;
-                }
-            }
         }
     }
 
@@ -2090,7 +2087,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
 
         lock (pendingResultLock)
         {
-            pendingUiResult = null;
+            pendingResults.Clear();
             uiUpdateScheduled = false;
         }
 
