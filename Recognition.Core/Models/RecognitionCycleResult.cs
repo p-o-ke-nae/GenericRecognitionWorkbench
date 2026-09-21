@@ -8,6 +8,10 @@ public sealed class RecognitionCycleResult
 
     public required RecognitionFrame PreviewFrame { get; init; }
 
+    public RecognitionFrameHistory? FrameHistory { get; init; }
+
+    public bool IsSingleShot { get; init; }
+
     public required bool IsDetected { get; init; }
 
     public required bool EventTriggered { get; init; }

@@ -189,6 +189,9 @@
                                 <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="FrameHistoryRetentionSecondsText" Click="IncreaseProfileNumeric_Click" Content="+" />
                             </Grid>
                         </Grid>
+                        <CheckBox Margin="0,2,0,2"
+                                  Content="{Binding Localization[RetainSourceFramesInHistory], Mode=OneWay}"
+                                  IsChecked="{Binding RetainSourceFramesInHistory}" />
                         <Grid Margin="0,2,0,2">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140" />

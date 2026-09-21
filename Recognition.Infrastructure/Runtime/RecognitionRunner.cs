@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 using Recognition.Core;
 
@@ -12,8 +13,7 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
         {
             using var pipeline = BuildPipeline(profile);
             var state = new RecognitionRuntimeState();
-            state.FrameHistory = new RecognitionFrameHistory(TimeSpan.FromSeconds(Math.Max(0, profile.FrameHistoryRetentionSeconds)));
-            return ExecuteCycle(profile, pipeline, state, forceOcrWhenDetected: true, runActionsForTest: true, cancellationToken);
+            return ExecuteCycle(profile, pipeline, state, forceOcrWhenDetected: true, runActionsForTest: true, cancellationToken, isSingleShot: true);
         }, cancellationToken);
     }
 
@@ -28,8 +28,10 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
         RecognitionRuntimeState state,
         bool forceOcrWhenDetected,
         bool runActionsForTest,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool isSingleShot = false)
     {
+        var startedAt = Stopwatch.GetTimestamp();
         var now = DateTimeOffset.UtcNow;
         var capturedFrame = pipeline.FrameSource.CaptureAsync(cancellationToken).AsTask().GetAwaiter().GetResult();
         var frame = RecognitionFrameScaler.Scale(capturedFrame, profile.CaptureScale);
@@ -48,7 +50,7 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
         }
 
         BufferFrame(state, now, frame, processed, Math.Abs(profile.EventActionFrameOffset));
-        state.FrameHistory ??= new RecognitionFrameHistory(TimeSpan.FromSeconds(Math.Max(0, profile.FrameHistoryRetentionSeconds)));
+        state.FrameHistory ??= new RecognitionFrameHistory(TimeSpan.FromSeconds(Math.Max(0, profile.FrameHistoryRetentionSeconds)), profile.RetainSourceFramesInHistory);
         state.FrameHistory.Add(now, frame, processed);
         var match = pipeline.RecognitionMethod.Evaluate(processed);
         RoiArea? sourceMatchedRegion = match.Region is { } matchedRegion
@@ -92,8 +94,8 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
             var eventPair = futureFrameOffset > 0
                 ? (now, frame, processed)
                 : GetBufferedFrame(state, pastFrameOffset) ?? (now, frame, processed);
-            eventSourceFrame = eventPair.Item2.Clone();
-            eventPreviewFrame = eventPair.Item3.Clone();
+            eventSourceFrame = eventPair.Item2;
+            eventPreviewFrame = eventPair.Item3;
         }
 
         OcrExecutionResult? ocrExecution = null;
@@ -128,11 +130,18 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
             new[] { ocrExecution?.Result.Text, distanceMeasurement?.Text }
                 .Where(static text => !string.IsNullOrWhiteSpace(text)));
 
+        var metadata = new Dictionary<string, string>
+        {
+            ["RecognizerLabel"] = match.Label ?? string.Empty,
+            ["EventMode"] = profile.EventMode.ToString()
+        };
         var result = new RecognitionCycleResult
         {
             Timestamp = now,
-            SourceFrame = eventSourceFrame?.Clone() ?? frame.Clone(),
-            PreviewFrame = eventPreviewFrame?.Clone() ?? processed.Clone(),
+            SourceFrame = eventSourceFrame ?? frame,
+            PreviewFrame = eventPreviewFrame ?? processed,
+            FrameHistory = state.FrameHistory,
+            IsSingleShot = isSingleShot,
             IsDetected = match.IsDetected,
             EventTriggered = eventTriggered,
             DetectionConfidence = match.Confidence,
@@ -145,14 +154,18 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
             DistanceMeasurementPreviewFrame = distanceMeasurement?.PreviewFrame,
             FramesPerSecond = fps,
             StructuredDataJson = BuildStructuredDataJson(match, ocrExecution, imageRecognitionExecution, distanceMeasurement),
-            Metadata = new Dictionary<string, string>
-            {
-                ["RecognizerLabel"] = match.Label ?? string.Empty,
-                ["EventMode"] = profile.EventMode.ToString()
-            }
+            Metadata = metadata
         };
 
         state.PreviousDetected = match.IsDetected;
+        var elapsed = Stopwatch.GetElapsedTime(startedAt);
+        metadata["CycleMilliseconds"] = elapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture);
+        metadata["TargetPeriodExceeded"] = (profile.TargetFps > 0 && elapsed.TotalSeconds > 1d / profile.TargetFps) ? "true" : "false";
+        if (pipeline.FrameSource is IFrameSourceDiagnostics diagnostics)
+        {
+            metadata["FrameSequence"] = diagnostics.FrameSequence.ToString(CultureInfo.InvariantCulture);
+            metadata["DroppedFrames"] = diagnostics.DroppedFrames.ToString(CultureInfo.InvariantCulture);
+        }
         return result;
     }
 
@@ -259,7 +272,7 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
 
             previewFrames.Add(new OcrPreviewFrame(
                 target.Name,
-                targetFrame.Clone(),
+                targetFrame,
                 resolvedRegion.IsEmpty ? new RoiArea(0, 0, frame.Width, frame.Height) : resolvedRegion));
             var result = pipeline.OcrEngine!.Read(targetFrame);
             resultsByTarget[target.Name] = result;
@@ -310,13 +323,13 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
     {
         if (region.IsEmpty)
         {
-            return frame.Clone();
+            return frame;
         }
 
         using var mat = OpenCvFrameConversion.ToMat(frame);
         using var cropped = OpenCvFrameConversion.Crop(mat, region);
         return cropped.Empty()
-            ? frame.Clone()
+            ? frame
             : OpenCvFrameConversion.ToFrame(cropped, frame.CapturedAt);
     }
 
@@ -336,7 +349,7 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
         var results = new Dictionary<string, RecognitionMatch>(StringComparer.OrdinalIgnoreCase);
         foreach (var target in pipeline.ImageRecognitionTargets)
         {
-            var workingFrame = frame.Clone();
+            var workingFrame = frame;
             foreach (var processor in target.Processors)
             {
                 workingFrame = processor.Process(workingFrame);
@@ -419,7 +432,7 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
 
     private static void BufferFrame(RecognitionRuntimeState state, DateTimeOffset timestamp, RecognitionFrame source, RecognitionFrame processed, int frameOffset)
     {
-        state.BufferedFrames.Add((timestamp, source.Clone(), processed.Clone()));
+        state.BufferedFrames.Add((timestamp, source, processed));
         var maxBufferedFrames = Math.Max(1, frameOffset + 1);
         while (state.BufferedFrames.Count > maxBufferedFrames)
             state.BufferedFrames.RemoveAt(0);

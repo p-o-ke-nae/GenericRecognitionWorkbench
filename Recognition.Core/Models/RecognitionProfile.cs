@@ -10,6 +10,8 @@ public sealed class RecognitionProfile
 
     public int FrameHistoryRetentionSeconds { get; set; } = 10;
 
+    public bool RetainSourceFramesInHistory { get; set; } = false;
+
     public PreviewDisplayMode PreviewMode { get; set; } = PreviewDisplayMode.Processed;
 
     public string PreviewModuleId { get; set; } = string.Empty;
@@ -52,6 +54,7 @@ public sealed class RecognitionProfile
             TargetFps = TargetFps,
             CaptureScale = CaptureScale,
             FrameHistoryRetentionSeconds = FrameHistoryRetentionSeconds,
+            RetainSourceFramesInHistory = RetainSourceFramesInHistory,
             PreviewMode = PreviewMode,
             PreviewModuleId = PreviewModuleId,
             ShowOcrPreviewLabels = ShowOcrPreviewLabels,

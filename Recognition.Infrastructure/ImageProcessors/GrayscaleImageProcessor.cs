@@ -10,7 +10,7 @@ internal sealed class GrayscaleImageProcessor : IImageProcessor
         using var mat = OpenCvFrameConversion.ToMat(frame);
         if (mat.Channels() == 1)
         {
-            return frame.Clone();
+            return frame;
         }
 
         using var gray = new Mat();

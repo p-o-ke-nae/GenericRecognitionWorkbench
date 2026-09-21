@@ -3,9 +3,13 @@ using Recognition.Core;
 
 namespace Recognition.Infrastructure;
 
-internal sealed class CameraFrameSource : IFrameSource
+internal sealed class CameraFrameSource : IFrameSource, IFrameSourceDiagnostics
 {
     private readonly VideoCapture capture;
+    private readonly LatestFrameSlot latestFrame = new();
+    private readonly Thread grabThread;
+    private volatile bool stopping;
+    private int disposed;
 
     public CameraFrameSource(int cameraIndex, int width, int height, int fps)
     {
@@ -19,23 +23,43 @@ internal sealed class CameraFrameSource : IFrameSource
         capture.Set(VideoCaptureProperties.FrameWidth, width);
         capture.Set(VideoCaptureProperties.FrameHeight, height);
         capture.Set(VideoCaptureProperties.Fps, fps);
+        grabThread = new Thread(GrabFrames) { IsBackground = true, Name = $"Camera {cameraIndex} capture" };
+        grabThread.Start();
     }
 
-    public ValueTask<RecognitionFrame> CaptureAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
+    public long FrameSequence => latestFrame.FrameSequence;
 
-        using var frame = new Mat();
-        if (!capture.Read(frame) || frame.Empty())
-        {
-            throw new InvalidOperationException("Failed to capture a frame from the camera.");
-        }
+    public long DroppedFrames => latestFrame.DroppedFrames;
 
-        return ValueTask.FromResult(OpenCvFrameConversion.ToFrame(frame, DateTimeOffset.UtcNow));
-    }
+    public ValueTask<RecognitionFrame> CaptureAsync(CancellationToken cancellationToken) => latestFrame.CaptureAsync(cancellationToken);
 
     public void Dispose()
     {
-        capture.Dispose();
+        if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+        stopping = true;
+        latestFrame.Complete();
+        grabThread.Join();
+    }
+
+    private void GrabFrames()
+    {
+        try
+        {
+            using var frame = new Mat();
+            while (!stopping)
+            {
+                if (!capture.Read(frame) || frame.Empty())
+                    throw new InvalidOperationException("Failed to capture a frame from the camera.");
+                latestFrame.Publish(OpenCvFrameConversion.ToFrame(frame, DateTimeOffset.UtcNow));
+            }
+        }
+        catch (Exception error)
+        {
+            latestFrame.Complete(error);
+        }
+        finally
+        {
+            capture.Dispose();
+        }
     }
 }

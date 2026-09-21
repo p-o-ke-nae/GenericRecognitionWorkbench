@@ -23,7 +23,8 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
     private RecognitionCycleResult? lastResult;
     private RecognitionFrame? latestSourceFrame;
     private RecognitionFrame? latestProcessedFrame;
-    private RecognitionFrameHistory frameHistory = new(TimeSpan.FromSeconds(10));
+    private readonly RecognitionFrameHistoryMirror historyMirror = new();
+    private bool retainSourceFramesInHistory;
     private RecognitionFrameHistoryEntry? selectedHistoryEntry;
     private string frameHistoryRetentionSecondsText = "10";
     private int selectedHistoryIndex = -1;
@@ -197,7 +198,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
 
     public DelegateCommand NextHistoryFrameCommand { get; }
 
-    public ObservableCollection<RecognitionFrameHistoryEntry> FrameHistoryEntries { get; } = [];
+    public ObservableCollection<RecognitionFrameHistoryEntry> FrameHistoryEntries => historyMirror.Entries;
 
     public int FrameHistoryMaximum => Math.Max(0, FrameHistoryEntries.Count - 1);
 
@@ -316,6 +317,12 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
     {
         get => frameHistoryRetentionSecondsText;
         set => SetProperty(ref frameHistoryRetentionSecondsText, NumericInputHelper.Normalize(value));
+    }
+
+    public bool RetainSourceFramesInHistory
+    {
+        get => retainSourceFramesInHistory;
+        set => SetProperty(ref retainSourceFramesInHistory, value);
     }
 
     public string EventActionFrameOffsetText
@@ -554,7 +561,9 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
                 "builtin.preview.ocr-references",
                 PreviewDisplayMode.OcrReferences,
                 localization => localization["PreviewOcrReferences"],
-                static (viewModel, result) => viewModel.BuildOcrReferencePreviewImage(viewModel.GetSelectedSourceFrame() ?? result.SourceFrame, viewModel.EvaluateOcrReferences(viewModel.GetSelectedSourceFrame() ?? result.SourceFrame)),
+                static (viewModel, result) => viewModel.GetSelectedSourceFrame() is { } frame
+                    ? viewModel.BuildOcrReferencePreviewImage(frame, viewModel.EvaluateOcrReferences(frame))
+                    : null,
                 [new PreviewSettingDefinition(nameof(ShowOcrPreviewLabels), "ShowOcrPreviewLabels")]),
             new PreviewModule(
                 "builtin.preview.ocr-targets",
@@ -562,9 +571,10 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
                 localization => localization["PreviewOcrTargets"],
                 static (viewModel, result) =>
                 {
+                    if (viewModel.GetSelectedSourceFrame() is not { } frame) return null;
                     if (result.OcrPreviewFrames.Count > 0)
                     {
-                        viewModel.latestOcrTargetsPreviewImage = viewModel.BuildOcrTargetPreviewImage(viewModel.GetSelectedSourceFrame() ?? result.SourceFrame, result.OcrPreviewFrames);
+                        viewModel.latestOcrTargetsPreviewImage = viewModel.BuildOcrTargetPreviewImage(frame, result.OcrPreviewFrames);
                     }
 
                     return viewModel.latestOcrTargetsPreviewImage;
@@ -741,7 +751,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         var selectedFrame = GetSelectedSourceFrame();
         if (selectedFrame is null)
         {
-            OcrReferencePreviewText = Localization["CropNeedsCapture"];
+            OcrReferencePreviewText = GetSourceUnavailableMessage("CropNeedsCapture");
             return;
         }
 
@@ -891,7 +901,12 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         return CreateTemplateFromLatestCaptureAsync(useProcessedFrame: false);
     }
 
-    private RecognitionFrame? GetSelectedSourceFrame() => selectedHistoryEntry?.SourceFrame ?? latestSourceFrame;
+    private RecognitionFrame? GetSelectedSourceFrame() => historyMirror.GetSourceFrame(selectedHistoryEntry, latestSourceFrame);
+
+    private string GetSourceUnavailableMessage(string captureRequiredKey) =>
+        selectedHistoryEntry is { HasSourceFrame: false }
+            ? Localization["SourceHistoryUnavailable"]
+            : Localization[captureRequiredKey];
 
     private RecognitionFrame? GetSelectedProcessedFrame() => selectedHistoryEntry?.ProcessedFrame ?? latestProcessedFrame;
 
@@ -937,7 +952,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         var templateFrame = useProcessedFrame ? GetSelectedProcessedFrame() : GetSelectedSourceFrame();
         if (templateFrame is null)
         {
-            StatusMessage = useProcessedFrame ? Localization["ProcessedTemplateNeedsCapture"] : Localization["TemplateNeedsCapture"];
+            StatusMessage = useProcessedFrame ? Localization["ProcessedTemplateNeedsCapture"] : GetSourceUnavailableMessage("TemplateNeedsCapture");
             return Task.CompletedTask;
         }
 
@@ -949,7 +964,8 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         var sourceBitmap = CreateBitmapSource(templateFrame);
         var region = ShowCropSelection(
             sourceBitmap,
-            useProcessedFrame ? Localization["ProcessedTemplateCropTitle"] : Localization["RawTemplateCropTitle"]);
+            useProcessedFrame ? Localization["ProcessedTemplateCropTitle"] : Localization["RawTemplateCropTitle"],
+            useProcessedFrame: useProcessedFrame);
         if (region is not { } selectedRegion)
         {
             return Task.CompletedTask;
@@ -958,7 +974,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         var selectedTemplateFrame = useProcessedFrame ? GetSelectedProcessedFrame() : GetSelectedSourceFrame();
         if (selectedTemplateFrame is null)
         {
-            StatusMessage = useProcessedFrame ? Localization["ProcessedTemplateNeedsCapture"] : Localization["TemplateNeedsCapture"];
+            StatusMessage = useProcessedFrame ? Localization["ProcessedTemplateNeedsCapture"] : GetSourceUnavailableMessage("TemplateNeedsCapture");
             return Task.CompletedTask;
         }
 
@@ -978,7 +994,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         var selectedFrame = GetSelectedSourceFrame();
         if (selectedFrame is null)
         {
-            StatusMessage = Localization["CropNeedsCapture"];
+            StatusMessage = GetSourceUnavailableMessage("CropNeedsCapture");
             return Task.CompletedTask;
         }
 
@@ -1012,7 +1028,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         var selectedFrame = GetSelectedSourceFrame();
         if (selectedFrame is null)
         {
-            StatusMessage = Localization["CropNeedsCapture"];
+            StatusMessage = GetSourceUnavailableMessage("CropNeedsCapture");
             return Task.CompletedTask;
         }
 
@@ -1057,7 +1073,8 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         var region = ShowCropSelection(
             sourceBitmap,
             Localization["TemplateCropTitle"],
-            new RoiArea(0, 0, sourceBitmap.PixelWidth, sourceBitmap.PixelHeight));
+            new RoiArea(0, 0, sourceBitmap.PixelWidth, sourceBitmap.PixelHeight),
+            includeHistory: false);
         if (region is not { } selectedRegion)
         {
             return Task.CompletedTask;
@@ -1163,6 +1180,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
             TargetFps = Math.Max(1, NumericInputHelper.ParseInt32OrDefault(TargetFpsText, 60)),
             CaptureScale = NormalizeCaptureScale(NumericInputHelper.ParseDoubleOrDefault(CaptureScaleText, 1.0d)),
             FrameHistoryRetentionSeconds = Math.Clamp(NumericInputHelper.ParseInt32OrDefault(FrameHistoryRetentionSecondsText, 10), 0, 3600),
+            RetainSourceFramesInHistory = RetainSourceFramesInHistory,
             PreviewMode = SelectedPreviewModeOption?.Module.LegacyMode ?? PreviewDisplayMode.Processed,
             PreviewModuleId = SelectedPreviewModeOption?.Module.Id ?? string.Empty,
             ShowOcrPreviewLabels = ShowOcrPreviewLabels,
@@ -1201,6 +1219,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
             TargetFpsText = displayProfile.TargetFps.ToString(System.Globalization.CultureInfo.InvariantCulture);
             CaptureScaleText = NormalizeCaptureScale(displayProfile.CaptureScale).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
             FrameHistoryRetentionSecondsText = Math.Clamp(displayProfile.FrameHistoryRetentionSeconds, 0, 3600).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            RetainSourceFramesInHistory = displayProfile.RetainSourceFramesInHistory;
             EventActionFrameOffsetText = Math.Clamp(displayProfile.EventActionFrameOffset, -600, 600).ToString(System.Globalization.CultureInfo.InvariantCulture);
             OcrEnabled = displayProfile.OcrEnabled;
             DistanceMeasurementEnabled = displayProfile.EventAction is RecognitionEventAction.DistanceMeasurement or RecognitionEventAction.OcrAndDistance;
@@ -1296,9 +1315,8 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
             suppressProfileOperationStateUpdates = false;
         }
 
-        frameHistory.Clear();
-        frameHistory = new RecognitionFrameHistory(TimeSpan.FromSeconds(Math.Clamp(displayProfile.FrameHistoryRetentionSeconds, 0, 3600)));
-        FrameHistoryEntries.Clear();
+        historyMirror.Clear();
+        selectedHistoryEntry = null;
         SelectedHistoryIndex = -1;
         RaisePropertyChanged(nameof(FrameHistoryMaximum));
         UpdateProfileOperationState();
@@ -1311,12 +1329,9 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         latestSourceFrame = result.SourceFrame;
         latestProcessedFrame = result.PreviewFrame;
         var wasAtLatest = SelectedHistoryIndex < 0 || SelectedHistoryIndex == FrameHistoryEntries.Count - 1;
-        frameHistory.Add(result.Timestamp, result.SourceFrame, result.PreviewFrame);
-        FrameHistoryEntries.Clear();
-        foreach (var entry in frameHistory.Entries)
-        {
-            FrameHistoryEntries.Add(entry);
-        }
+        var retention = TimeSpan.FromSeconds(Math.Clamp(
+            NumericInputHelper.ParseInt32OrDefault(FrameHistoryRetentionSecondsText, 10), 0, 3600));
+        var removed = historyMirror.Apply(result, retention, RetainSourceFramesInHistory);
         RaisePropertyChanged(nameof(FrameHistoryMaximum));
         if (FrameHistoryEntries.Count == 0)
         {
@@ -1325,15 +1340,19 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         }
         else if (wasAtLatest || SelectedHistoryIndex < 0)
         {
+            selectedHistoryEntry = FrameHistoryEntries[^1];
             SelectedHistoryIndex = FrameHistoryEntries.Count - 1;
+            RaisePropertyChanged(nameof(SelectedHistoryLabel));
         }
         else
         {
-            selectedHistoryIndex = Math.Min(selectedHistoryIndex, FrameHistoryEntries.Count - 1);
+            selectedHistoryIndex = Math.Clamp(selectedHistoryIndex - removed, 0, FrameHistoryEntries.Count - 1);
             selectedHistoryEntry = FrameHistoryEntries[selectedHistoryIndex];
             RaisePropertyChanged(nameof(SelectedHistoryIndex));
             RaisePropertyChanged(nameof(SelectedHistoryLabel));
         }
+        PreviousHistoryFrameCommand.RaiseCanExecuteChanged();
+        NextHistoryFrameCommand.RaiseCanExecuteChanged();
         PreviewImage = BuildPreviewImage(result);
         RefreshOcrReferencePreview();
         LastFps = result.FramesPerSecond;
@@ -1504,8 +1523,9 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         SaveBitmap(bitmap, filePath);
     }
 
-    private static ImageSource ToBitmapSource(RecognitionFrame frame, RoiArea? overlayRegion = null, bool isDetected = true, RoiArea? searchRegion = null)
+    private static ImageSource? ToBitmapSource(RecognitionFrame? frame, RoiArea? overlayRegion = null, bool isDetected = true, RoiArea? searchRegion = null)
     {
+        if (frame is null) return null;
         var bitmap = CreateBitmapSource(frame);
         var hasOverlayRegion = overlayRegion is { IsEmpty: false };
         var hasSearchRegion = searchRegion is { IsEmpty: false };
@@ -1548,16 +1568,20 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         }
     }
 
-    private RoiArea? ShowCropSelection(BitmapSource sourceBitmap, string title, RoiArea? initialRegion = null)
+    private RoiArea? ShowCropSelection(BitmapSource sourceBitmap, string title, RoiArea? initialRegion = null,
+        bool useProcessedFrame = false, bool includeHistory = true)
     {
         var selector = new ImageCropSelectionWindow(
             sourceBitmap,
             title,
             Localization,
             initialRegion,
-            FrameHistoryEntries,
+            includeHistory ? FrameHistoryEntries : null,
             SelectedHistoryIndex,
-            index => SelectedHistoryIndex = index)
+            index => SelectedHistoryIndex = index,
+            useProcessedFrame,
+            entry => historyMirror.GetSourceFrame(entry, latestSourceFrame),
+            message => StatusMessage = message)
         {
             Owner = Application.Current.MainWindow
         };
@@ -1567,7 +1591,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
             return null;
         }
 
-        SelectedHistoryIndex = selector.SelectedHistoryIndex;
+        if (includeHistory) SelectedHistoryIndex = selector.SelectedHistoryIndex;
         return selector.SelectedRegion;
     }
 
@@ -2296,10 +2320,10 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         }
     }
 
-    private RecognitionFrame GetDefaultPreviewFrame(RecognitionCycleResult result)
+    private RecognitionFrame? GetDefaultPreviewFrame(RecognitionCycleResult result)
     {
         return (GetActivePreviewModule()?.Module.LegacyMode ?? PreviewDisplayMode.Processed) == PreviewDisplayMode.Captured
-            ? GetSelectedSourceFrame() ?? result.SourceFrame
+            ? GetSelectedSourceFrame()
             : GetSelectedProcessedFrame() ?? result.PreviewFrame;
     }
 
@@ -2337,10 +2361,10 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
 
         return activeModule.LegacyMode switch
         {
-            PreviewDisplayMode.Captured => GetSelectedSourceFrame() ?? result.SourceFrame,
+            PreviewDisplayMode.Captured => GetSelectedSourceFrame(),
             PreviewDisplayMode.Processed => GetSelectedProcessedFrame() ?? result.PreviewFrame,
-            PreviewDisplayMode.OcrReferences => GetSelectedSourceFrame() ?? result.SourceFrame,
-            PreviewDisplayMode.OcrTargets => GetSelectedSourceFrame() ?? result.SourceFrame,
+            PreviewDisplayMode.OcrReferences => GetSelectedSourceFrame(),
+            PreviewDisplayMode.OcrTargets => GetSelectedSourceFrame(),
             PreviewDisplayMode.DistanceMeasurement => result.DistanceMeasurementPreviewFrame,
             _ => result.PreviewFrame
         };
@@ -2348,6 +2372,13 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
 
     private ImageSource? BuildPreviewImage(RecognitionCycleResult result)
     {
+        var mode = GetActivePreviewModule()?.Module.LegacyMode ?? PreviewDisplayMode.Processed;
+        if (mode is PreviewDisplayMode.Captured or PreviewDisplayMode.OcrReferences or PreviewDisplayMode.OcrTargets
+            && GetSelectedSourceFrame() is null)
+        {
+            StatusMessage = GetSourceUnavailableMessage("CropNeedsCapture");
+            return null;
+        }
         if (GetActivePreviewModule()?.Module is not { } module)
         {
             return ToBitmapSource(GetDefaultPreviewFrame(result), GetDefaultPreviewOverlayRegion(result), result.IsDetected, GetDefaultPreviewSearchRegion());

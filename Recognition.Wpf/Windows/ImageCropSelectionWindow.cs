@@ -25,6 +25,9 @@ internal sealed class ImageCropSelectionWindow : Window
     private readonly TextBlock historyValueText;
     private readonly IReadOnlyList<RecognitionFrameHistoryEntry> historyEntries;
     private readonly Action<int>? historySelectionChanged;
+    private readonly bool useProcessedFrame;
+    private readonly Func<RecognitionFrameHistoryEntry, RecognitionFrame?>? sourceFrameResolver;
+    private readonly Action<string>? showStatus;
     private readonly TextBox xTextBox;
     private readonly TextBox yTextBox;
     private readonly TextBox widthTextBox;
@@ -41,12 +44,18 @@ internal sealed class ImageCropSelectionWindow : Window
         RoiArea? initialRegion = null,
         IReadOnlyList<RecognitionFrameHistoryEntry>? historyEntries = null,
         int selectedHistoryIndex = -1,
-        Action<int>? historySelectionChanged = null)
+        Action<int>? historySelectionChanged = null,
+        bool useProcessedFrame = false,
+        Func<RecognitionFrameHistoryEntry, RecognitionFrame?>? sourceFrameResolver = null,
+        Action<string>? showStatus = null)
     {
         this.imageSource = imageSource;
         this.localization = localization;
         this.historyEntries = historyEntries ?? [];
         this.historySelectionChanged = historySelectionChanged;
+        this.useProcessedFrame = useProcessedFrame;
+        this.sourceFrameResolver = sourceFrameResolver;
+        this.showStatus = showStatus;
         SelectedHistoryIndex = this.historyEntries.Count == 0
             ? -1
             : Math.Clamp(selectedHistoryIndex, 0, this.historyEntries.Count - 1);
@@ -313,23 +322,32 @@ internal sealed class ImageCropSelectionWindow : Window
             return;
         }
 
-        SelectedHistoryIndex = index;
         var entry = historyEntries[index];
-        var selectedFrame = titleContainsProcessedImage()
+        var selectedFrame = useProcessedFrame
             ? entry.ProcessedFrame
-            : entry.SourceFrame;
+            : sourceFrameResolver?.Invoke(entry) ?? entry.SourceFrame;
+        if (selectedFrame is null)
+        {
+            var message = localization["SourceHistoryUnavailable"];
+            showStatus?.Invoke(message);
+            historyValueText.Width = 360;
+            historyValueText.TextWrapping = TextWrapping.Wrap;
+            historyValueText.ToolTip = message;
+            historyValueText.Text = message;
+            historySlider.Value = SelectedHistoryIndex;
+            return;
+        }
+        SelectedHistoryIndex = index;
         imageSource = CreateBitmapSource(selectedFrame);
         imageControl.Source = imageSource;
         ApplyZoom(zoomFactor);
         SetCurrentRegion(CreateDefaultRegion(), updateTextBoxes: true);
         historySlider.Value = index;
+        historyValueText.Width = 80;
+        historyValueText.ToolTip = null;
         historyValueText.Text = $"{index + 1}/{historyEntries.Count}";
         historySelectionChanged?.Invoke(index);
     }
-
-    private bool titleContainsProcessedImage() =>
-        Title.Contains("処理後", StringComparison.OrdinalIgnoreCase)
-        || Title.Contains("processed", StringComparison.OrdinalIgnoreCase);
 
     private static BitmapSource CreateBitmapSource(RecognitionFrame frame)
     {

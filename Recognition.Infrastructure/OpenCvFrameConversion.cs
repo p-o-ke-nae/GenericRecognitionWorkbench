@@ -66,7 +66,8 @@ internal static class OpenCvFrameConversion
             return new Mat();
         }
 
-        return new Mat(mat, bounded).Clone();
+        using var region = new Mat(mat, bounded);
+        return region.Clone();
     }
 
     private static Mat NormalizePixelFormat(Mat input)

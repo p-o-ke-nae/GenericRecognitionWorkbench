@@ -13,6 +13,8 @@ public sealed class UiLocalization : ObservableObject
         ["RecognitionFps"] = ("認識 FPS", "Recognition FPS"),
         ["CaptureScale"] = ("キャプチャ倍率", "Capture Scale"),
         ["FrameHistoryRetention"] = ("履歴保持秒数", "History Retention (seconds)"),
+        ["RetainSourceFramesInHistory"] = ("履歴に生画像も保持する（メモリ使用量増加）", "Retain raw history frames (uses more memory)"),
+        ["SourceHistoryUnavailable"] = ("生画像履歴がオフのため、この過去フレームの生画像は使用できません。最新フレームを選択するか、生画像履歴を有効にして再取得してください。", "Raw image history is off for this older frame. Select the latest frame, or enable raw history and capture again."),
         ["PreviewMode"] = ("プレビュー表示", "Preview Mode"),
         ["EventAction"] = ("イベント処理", "Event Action"),
         ["EventActionFrameOffset"] = ("イベント処理フレームオフセット", "Event Action Frame Offset"),

@@ -12,6 +12,7 @@ public sealed class RecognitionFrame
         CapturedAt = capturedAt;
     }
 
+    /// <summary>Owned pixel buffer. Treat as immutable after publishing the frame; use Clone before editing.</summary>
     public byte[] PixelData { get; }
 
     public int Width { get; }

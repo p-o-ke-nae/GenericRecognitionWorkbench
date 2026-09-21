@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <VersionPrefix>0.1.7</VersionPrefix>
+    <VersionPrefix>0.1.12</VersionPrefix>
     <VersionSuffix Condition="'$(VersionSuffix)' == '' and '$(Version)' == ''">local</VersionSuffix>
     <Authors>o_leg</Authors>
     <PackageReadmeFile>PACKAGE_README.md</PackageReadmeFile>
