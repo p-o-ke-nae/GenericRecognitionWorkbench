@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>GenericRecognition.Workbench.Abstractions</PackageId>
+    <Description>Plugin interfaces and shared models for the generic recognition workbench.</Description>
+    <PackageTags>ocr;recognition;plugin;wpf</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\PACKAGE_README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

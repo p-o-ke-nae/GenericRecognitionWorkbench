@@ -1,0 +1,100 @@
+<UserControl x:Class="Recognition.Wpf.ImagePathEditorControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+    <Grid Margin="0,2,0,2">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="140" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <TextBlock Grid.Row="0"
+                   Grid.Column="0"
+                   VerticalAlignment="Center"
+                   Text="{Binding LabelText, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+        <TextBox Grid.Row="0"
+                 Grid.Column="1"
+                 VerticalContentAlignment="Center"
+                 Text="{Binding PathText, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+        <WrapPanel Grid.Row="1"
+                   Grid.Column="1"
+                   Margin="0,4,0,0">
+            <Button Margin="0,0,4,4"
+                    Padding="8,2"
+                    Content="{Binding BrowseButtonText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    Command="{Binding BrowseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding CommandParameter, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            <Button Margin="0,0,4,4"
+                    Padding="8,2"
+                    Content="{Binding RawCaptureButtonText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    Command="{Binding CreateRawCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding CommandParameter, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowCreateButtons, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Margin="0,0,0,4"
+                    Padding="8,2"
+                    Content="{Binding ProcessedCaptureButtonText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    Command="{Binding CreateProcessedCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding CommandParameter, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowCreateButtons, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Margin="0,0,4,4"
+                    Padding="8,2"
+                    Content="{Binding EditOverwriteButtonText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    Command="{Binding EditOverwriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding CommandParameter, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Setter Property="IsEnabled" Value="True" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PathText, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="">
+                                <Setter Property="IsEnabled" Value="False" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Margin="0,0,0,4"
+                    Padding="8,2"
+                    Content="{Binding EditSaveAsButtonText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    Command="{Binding EditSaveAsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding CommandParameter, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Setter Property="IsEnabled" Value="True" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PathText, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="">
+                                <Setter Property="IsEnabled" Value="False" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </WrapPanel>
+    </Grid>
+</UserControl>

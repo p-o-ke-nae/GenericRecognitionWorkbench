@@ -1,0 +1,42 @@
+<Project>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <_GrwPaddleRuntimeVersion>3.3.0.1</_GrwPaddleRuntimeVersion>
+    <_GrwPaddleOcrSharpVersion>6.2.0</_GrwPaddleOcrSharpVersion>
+    <_GrwOpenCvRuntimeVersion>4.13.0.20260627</_GrwOpenCvRuntimeVersion>
+    <_GrwTesseractVersion>5.2.0</_GrwTesseractVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <_GrwNativeRootFiles Include="$(NuGetPackageRoot)paddle.runtime.win_x64\$(_GrwPaddleRuntimeVersion)\build\win_x64\*.dll" />
+    <_GrwNativeRootFiles Include="$(NuGetPackageRoot)paddleocrsharp\$(_GrwPaddleOcrSharpVersion)\build\ytLib\PaddleOCR.dll" />
+    <_GrwNativeRootFiles Include="$(NuGetPackageRoot)tesseract\$(_GrwTesseractVersion)\x64\*.dll" />
+    <_GrwNativeRootFiles Include="$(NuGetPackageRoot)opencvsharp4.runtime.win\$(_GrwOpenCvRuntimeVersion)\runtimes\win-x64\native\*.dll" />
+    <_GrwInferenceFiles Include="$(NuGetPackageRoot)paddleocrsharp\$(_GrwPaddleOcrSharpVersion)\build\ytLib\inference\**\*.*" />
+  </ItemGroup>
+
+  <Target Name="CopyGenericRecognitionNativeAssetsToBuildOutput"
+          AfterTargets="Build"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('$(TargetDir)')">
+    <Copy SourceFiles="@(_GrwNativeRootFiles)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true"
+          Condition="'@(_GrwNativeRootFiles)' != ''" />
+    <Copy SourceFiles="@(_GrwInferenceFiles)"
+          DestinationFiles="@(_GrwInferenceFiles->'$(TargetDir)inference\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(_GrwInferenceFiles)' != ''" />
+  </Target>
+
+  <Target Name="CopyGenericRecognitionNativeAssetsToPublishOutput"
+          AfterTargets="Publish"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('$(PublishDir)')">
+    <Copy SourceFiles="@(_GrwNativeRootFiles)"
+          DestinationFolder="$(PublishDir)"
+          SkipUnchangedFiles="true"
+          Condition="'@(_GrwNativeRootFiles)' != ''" />
+    <Copy SourceFiles="@(_GrwInferenceFiles)"
+          DestinationFiles="@(_GrwInferenceFiles->'$(PublishDir)inference\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(_GrwInferenceFiles)' != ''" />
+  </Target>
+</Project>

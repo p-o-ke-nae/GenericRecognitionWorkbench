@@ -1,0 +1,974 @@
+<UserControl x:Class="Recognition.Wpf.RecognitionWorkbenchControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:Recognition.Wpf"
+             mc:Ignorable="d"
+             d:DesignHeight="900"
+             d:DesignWidth="1400">
+    <UserControl.Resources>
+        <DataTemplate x:Key="TextParameterTemplate" DataType="{x:Type local:ParameterEntryViewModel}">
+            <Grid Margin="0,2,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{Binding DisplayName}" />
+                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="ImageParameterTemplate" DataType="{x:Type local:ParameterEntryViewModel}">
+            <local:ImagePathEditorControl LabelText="{Binding DisplayName}"
+                                          PathText="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                          BrowseButtonText="{Binding DataContext.Localization[Browse], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                          RawCaptureButtonText="{Binding DataContext.Localization[CreateTemplateFromRawCapture], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                          ProcessedCaptureButtonText="{Binding DataContext.Localization[CreateTemplateFromProcessedCapture], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                          EditOverwriteButtonText="{Binding DataContext.Localization[RecropAndOverwrite], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                          EditSaveAsButtonText="{Binding DataContext.Localization[RecropAndSaveAs], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                          BrowseCommand="{Binding DataContext.BrowseImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          CreateRawCommand="{Binding DataContext.CreateRawImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          CreateProcessedCommand="{Binding DataContext.CreateProcessedImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          EditOverwriteCommand="{Binding DataContext.RecropImageOverwriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          EditSaveAsCommand="{Binding DataContext.RecropImageSaveAsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          CommandParameter="{Binding}" />
+        </DataTemplate>
+        <DataTemplate x:Key="NumericParameterTemplate" DataType="{x:Type local:ParameterEntryViewModel}">
+            <Grid Margin="0,2,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="32" />
+                    <ColumnDefinition Width="32" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{Binding DisplayName}" />
+                <TextBox Grid.Column="1"
+                         VerticalContentAlignment="Center"
+                         Tag="{Binding}"
+                         Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                         PreviewTextInput="ParameterNumericTextBox_PreviewTextInput"
+                         DataObject.Pasting="ParameterNumericTextBox_Pasting" />
+                <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="{Binding}" Click="DecreaseParameterNumeric_Click" Content="-" />
+                <Button Grid.Column="3" Margin="4,0,0,0" Padding="0" Tag="{Binding}" Click="IncreaseParameterNumeric_Click" Content="+" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="BooleanParameterTemplate" DataType="{x:Type local:ParameterEntryViewModel}">
+            <CheckBox Margin="0,2,0,2" IsChecked="{Binding BooleanValue}" Content="{Binding DisplayName}" />
+        </DataTemplate>
+        <DataTemplate x:Key="ChoiceParameterTemplate" DataType="{x:Type local:ParameterEntryViewModel}">
+            <Grid Margin="0,2,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{Binding DisplayName}" />
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding Options}"
+                          DisplayMemberPath="Label"
+                          SelectedItem="{Binding SelectedOption, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+        </DataTemplate>
+        <local:ParameterEditorTemplateSelector x:Key="ParameterEditorTemplateSelector"
+                                               TextTemplate="{StaticResource TextParameterTemplate}"
+                                               ImageTemplate="{StaticResource ImageParameterTemplate}"
+                                               NumericTemplate="{StaticResource NumericParameterTemplate}"
+                                               BooleanTemplate="{StaticResource BooleanParameterTemplate}"
+                                               ChoiceTemplate="{StaticResource ChoiceParameterTemplate}" />
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="430" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Grid Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                <GroupBox Header="{Binding Localization[Profile], Mode=OneWay}">
+                    <StackPanel Margin="8">
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[ProfileName], Mode=OneWay}" />
+                            <TextBox Grid.Column="1" Text="{Binding ProfileName, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[ProfileList], Mode=OneWay}" />
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding AvailableProfiles}"
+                                      DisplayMemberPath="Name"
+                                      SelectedItem="{Binding SelectedProfileEntry}" />
+                            <Button Grid.Column="2"
+                                    Margin="8,0,0,0"
+                                    Padding="8,4"
+                                    Click="ReloadProfileList_Click"
+                                    Content="{Binding Localization[ReloadProfileList], Mode=OneWay}" />
+                        </Grid>
+                        <TextBlock Margin="0,4,0,0"
+                                   Foreground="#B35A00"
+                                   Text="{Binding ProfileLoadHint}"
+                                   TextWrapping="Wrap" />
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[RecognitionFps], Mode=OneWay}" />
+                            <Grid Grid.Column="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="32" />
+                                    <ColumnDefinition Width="32" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         VerticalContentAlignment="Center"
+                                         Tag="TargetFpsText"
+                                         Text="{Binding TargetFpsText, UpdateSourceTrigger=PropertyChanged}"
+                                         PreviewTextInput="ProfileNumericTextBox_PreviewTextInput"
+                                         DataObject.Pasting="ProfileNumericTextBox_Pasting" />
+                                <Button Grid.Column="1" Margin="4,0,0,0" Padding="0" Tag="TargetFpsText" Click="DecreaseProfileNumeric_Click" Content="-" />
+                                <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="TargetFpsText" Click="IncreaseProfileNumeric_Click" Content="+" />
+                            </Grid>
+                        </Grid>
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[CaptureScale], Mode=OneWay}" />
+                            <StackPanel Grid.Column="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="32" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             VerticalContentAlignment="Center"
+                                             Tag="CaptureScaleText"
+                                             Text="{Binding CaptureScaleText, UpdateSourceTrigger=PropertyChanged}"
+                                             PreviewTextInput="ProfileNumericTextBox_PreviewTextInput"
+                                             DataObject.Pasting="ProfileNumericTextBox_Pasting" />
+                                    <Button Grid.Column="1" Margin="4,0,0,0" Padding="0" Tag="CaptureScaleText" Click="DecreaseProfileNumeric_Click" Content="-" />
+                                    <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="CaptureScaleText" Click="IncreaseProfileNumeric_Click" Content="+" />
+                                </Grid>
+                                <TextBlock Margin="0,2,0,0"
+                                           FontSize="11"
+                                           Foreground="#77000000"
+                                           Text="{Binding Localization[CaptureScaleHint], Mode=OneWay}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[FrameHistoryRetention], Mode=OneWay}" />
+                            <Grid Grid.Column="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="32" />
+                                    <ColumnDefinition Width="32" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Tag="FrameHistoryRetentionSecondsText" Text="{Binding FrameHistoryRetentionSecondsText, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="ProfileNumericTextBox_PreviewTextInput" DataObject.Pasting="ProfileNumericTextBox_Pasting" />
+                                <Button Grid.Column="1" Margin="4,0,0,0" Padding="0" Tag="FrameHistoryRetentionSecondsText" Click="DecreaseProfileNumeric_Click" Content="-" />
+                                <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="FrameHistoryRetentionSecondsText" Click="IncreaseProfileNumeric_Click" Content="+" />
+                            </Grid>
+                        </Grid>
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[PreviewMode], Mode=OneWay}" />
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding PreviewModes}"
+                                      DisplayMemberPath="Label"
+                                      SelectedItem="{Binding SelectedPreviewModeOption}" />
+                        </Grid>
+                        <GroupBox Header="{Binding Localization[PreviewSettings], Mode=OneWay}" Margin="0,8,0,0">
+                            <ItemsControl Margin="8" ItemsSource="{Binding ActivePreviewSettings}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Margin="0,2,0,2"
+                                                  Content="{Binding Label}"
+                                                  IsChecked="{Binding IsEnabled}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </GroupBox>
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[Language], Mode=OneWay}" />
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding Languages}"
+                                      DisplayMemberPath="Label"
+                                      SelectedItem="{Binding SelectedLanguageOption}" />
+                        </Grid>
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[EventMode], Mode=OneWay}" />
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding EventModes}"
+                                      DisplayMemberPath="Label"
+                                      SelectedItem="{Binding SelectedEventModeOption}" />
+                        </Grid>
+                        <CheckBox Margin="0,2,0,2"
+                                  Content="{Binding Localization[EnableOcr], Mode=OneWay}"
+                                  IsChecked="{Binding OcrEnabled}" />
+                        <CheckBox Margin="0,2,0,2"
+                                  Content="{Binding Localization[EnableDistanceMeasurement], Mode=OneWay}"
+                                  IsChecked="{Binding DistanceMeasurementEnabled}" />
+                        <Grid Margin="0,2,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" Text="{Binding Localization[EventActionFrameOffset], Mode=OneWay}" />
+                            <StackPanel Grid.Column="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="32" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             VerticalContentAlignment="Center"
+                                             Tag="EventActionFrameOffsetText"
+                                             Text="{Binding EventActionFrameOffsetText, UpdateSourceTrigger=PropertyChanged}"
+                                             PreviewTextInput="ProfileNumericTextBox_PreviewTextInput"
+                                             DataObject.Pasting="ProfileNumericTextBox_Pasting" />
+                                    <Button Grid.Column="1" Margin="4,0,0,0" Padding="0" Tag="EventActionFrameOffsetText" Click="DecreaseProfileNumeric_Click" Content="-" />
+                                    <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="EventActionFrameOffsetText" Click="IncreaseProfileNumeric_Click" Content="+" />
+                                </Grid>
+                                <TextBlock Margin="0,2,0,0"
+                                           FontSize="11"
+                                           Foreground="#77000000"
+                                           Text="{Binding Localization[EventActionFrameOffsetHint], Mode=OneWay}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="{Binding Localization[FrameSource], Mode=OneWay}" Margin="0,8,0,0" IsEnabled="{Binding CanEditLoadedProfile}">
+                    <StackPanel Margin="8">
+                        <ComboBox ItemsSource="{Binding FrameSource.Options}"
+                                  SelectedItem="{Binding FrameSource.SelectedOption}"
+                                  DisplayMemberPath="DisplayName" />
+                        <Button Margin="0,6,0,6"
+                                HorizontalAlignment="Left"
+                                Padding="8,4"
+                                Click="SelectScreenRegion_Click"
+                                Content="{Binding Localization[SelectScreenRegion], Mode=OneWay}" />
+                        <ItemsControl ItemsSource="{Binding FrameSource.Parameters}"
+                                      ItemTemplateSelector="{StaticResource ParameterEditorTemplateSelector}" />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="{Binding Localization[Preprocessors], Mode=OneWay}" Margin="0,8,0,0" IsEnabled="{Binding CanEditLoadedProfile}">
+                    <StackPanel Margin="8">
+                        <Button HorizontalAlignment="Left"
+                                Padding="8,4"
+                                Command="{Binding AddPreprocessorCommand}"
+                                Content="{Binding Localization[AddPreprocessor], Mode=OneWay}" />
+                        <ItemsControl ItemsSource="{Binding Preprocessors}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,8,0,0" Padding="8" BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
+                                        <StackPanel>
+                                            <DockPanel Margin="0,0,0,6">
+                                                <Button DockPanel.Dock="Right"
+                                                        Padding="8,2"
+                                                        Click="MoveItemDown_Click"
+                                                        Content="↓" />
+                                                <Button DockPanel.Dock="Right"
+                                                        Margin="0,0,8,0"
+                                                        Padding="8,2"
+                                                        Click="MoveItemUp_Click"
+                                                        Content="↑" />
+                                                <Button DockPanel.Dock="Right"
+                                                        Padding="8,2"
+                                                        Tag="{Binding}"
+                                                        Click="RemovePreprocessor_Click"
+                                                        Content="{Binding DataContext.Localization[Remove], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                <Button DockPanel.Dock="Right"
+                                                        Margin="0,0,8,0"
+                                                        Padding="8,2"
+                                                        Tag="{Binding}"
+                                                        Click="SelectPreprocessorCropArea_Click"
+                                                        IsEnabled="{Binding SupportsCaptureAreaSelection}"
+                                                        Content="{Binding DataContext.Localization[SetCropArea], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                <ComboBox Margin="0,0,8,0"
+                                                          ItemsSource="{Binding Options}"
+                                                          SelectedItem="{Binding SelectedOption}"
+                                                          DisplayMemberPath="DisplayName" />
+                                            </DockPanel>
+                                            <ItemsControl ItemsSource="{Binding Parameters}"
+                                                          ItemTemplateSelector="{StaticResource ParameterEditorTemplateSelector}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="{Binding Localization[RecognitionMethod], Mode=OneWay}" Margin="0,8,0,0" IsEnabled="{Binding CanEditLoadedProfile}">
+                    <StackPanel Margin="8">
+                        <ComboBox ItemsSource="{Binding RecognitionMethod.Options}"
+                                  SelectedItem="{Binding RecognitionMethod.SelectedOption}"
+                                  DisplayMemberPath="DisplayName" />
+                        <ItemsControl ItemsSource="{Binding RecognitionMethod.Parameters}"
+                                      ItemTemplateSelector="{StaticResource ParameterEditorTemplateSelector}" />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="{Binding Localization[ImageRecognition], Mode=OneWay}" Margin="0,8,0,0" IsEnabled="{Binding CanEditLoadedProfile}">
+                    <StackPanel Margin="8">
+                        <Button HorizontalAlignment="Left"
+                                Padding="8,4"
+                                Command="{Binding AddImageRecognitionTargetCommand}"
+                                Content="{Binding Localization[AddImageRecognitionTarget], Mode=OneWay}" />
+                        <ItemsControl ItemsSource="{Binding ImageRecognitionTargets}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,8,0,0" Padding="8" BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
+                                        <StackPanel>
+                                            <DockPanel Margin="0,0,0,6">
+                                                <Button DockPanel.Dock="Right"
+                                                        Padding="8,2"
+                                                        Click="MoveItemDown_Click"
+                                                        Content="↓" />
+                                                <Button DockPanel.Dock="Right"
+                                                        Margin="0,0,8,0"
+                                                        Padding="8,2"
+                                                        Click="MoveItemUp_Click"
+                                                        Content="↑" />
+                                                <Button DockPanel.Dock="Right"
+                                                        Padding="8,2"
+                                                        Tag="{Binding}"
+                                                        Click="RemoveImageRecognitionTarget_Click"
+                                                        Content="{Binding DataContext.Localization[Remove], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                <TextBox Margin="0,0,8,0"
+                                                         VerticalContentAlignment="Center"
+                                                         Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                            </DockPanel>
+                                            <ComboBox ItemsSource="{Binding Recognizer.Options}"
+                                                      SelectedItem="{Binding Recognizer.SelectedOption}"
+                                                      DisplayMemberPath="DisplayName" />
+                                            <ItemsControl ItemsSource="{Binding Recognizer.Parameters}"
+                                                          ItemTemplateSelector="{StaticResource ParameterEditorTemplateSelector}" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                       FontWeight="Bold"
+                                                       Text="{Binding DataContext.Localization[Preprocessors], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                            <Button Margin="0,6,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    Padding="8,4"
+                                                    Command="{Binding AddPreprocessorCommand}"
+                                                    Content="{Binding DataContext.Localization[AddPreprocessor], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                            <ItemsControl ItemsSource="{Binding Preprocessors}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Margin="0,8,0,0" Padding="8" BorderBrush="#22000000" BorderThickness="1" CornerRadius="4">
+                                                            <StackPanel>
+                                                                <DockPanel Margin="0,0,0,6">
+                                                                    <Button DockPanel.Dock="Right"
+                                                                            Padding="8,2"
+                                                                            Click="MoveItemDown_Click"
+                                                                            Content="↓" />
+                                                                    <Button DockPanel.Dock="Right"
+                                                                            Margin="0,0,8,0"
+                                                                            Padding="8,2"
+                                                                            Click="MoveItemUp_Click"
+                                                                            Content="↑" />
+                                                                    <Button DockPanel.Dock="Right"
+                                                                            Padding="8,2"
+                                                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                                                            Click="RemoveImageRecognitionPreprocessor_Click"
+                                                                            Content="{Binding DataContext.Localization[Remove], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                                    <Button DockPanel.Dock="Right"
+                                                                            Margin="0,0,8,0"
+                                                                            Padding="8,2"
+                                                                            Tag="{Binding}"
+                                                                            Click="SelectPreprocessorCropArea_Click"
+                                                                            IsEnabled="{Binding SupportsCaptureAreaSelection}"
+                                                                            Content="{Binding DataContext.Localization[SetCropArea], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                                    <ComboBox Margin="0,0,8,0"
+                                                                              ItemsSource="{Binding Options}"
+                                                                              SelectedItem="{Binding SelectedOption}"
+                                                                              DisplayMemberPath="DisplayName" />
+                                                                </DockPanel>
+                                                                <ItemsControl ItemsSource="{Binding Parameters}"
+                                                                              ItemTemplateSelector="{StaticResource ParameterEditorTemplateSelector}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="{Binding Localization[Ocr], Mode=OneWay}" Margin="0,8,0,0" IsEnabled="{Binding CanEditLoadedProfile}">
+                    <StackPanel Margin="8">
+                        <StackPanel Margin="0,6,0,0" IsEnabled="{Binding OcrEnabled}">
+                            <ComboBox ItemsSource="{Binding OcrEngine.Options}"
+                                      SelectedItem="{Binding OcrEngine.SelectedOption}"
+                                      DisplayMemberPath="DisplayName" />
+                            <ItemsControl ItemsSource="{Binding OcrEngine.Parameters}"
+                                          ItemTemplateSelector="{StaticResource ParameterEditorTemplateSelector}" />
+                            <GroupBox Header="{Binding Localization[OcrReferences], Mode=OneWay}" Margin="0,8,0,0">
+                                <StackPanel Margin="8">
+                                    <Button HorizontalAlignment="Left"
+                                            Padding="8,4"
+                                            Command="{Binding AddOcrReferenceCommand}"
+                                            Content="{Binding Localization[AddOcrReference], Mode=OneWay}" />
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="{Binding OcrReferencePreviewText}"
+                                               TextWrapping="Wrap" />
+                                    <ItemsControl ItemsSource="{Binding OcrReferences}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,8,0,0" Padding="8" BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
+                                                    <StackPanel>
+                                                        <DockPanel Margin="0,0,0,6">
+                                                            <Button DockPanel.Dock="Right"
+                                                                    Padding="8,2"
+                                                                    Click="MoveItemDown_Click"
+                                                                    Content="↓" />
+                                                            <Button DockPanel.Dock="Right"
+                                                                    Margin="0,0,8,0"
+                                                                    Padding="8,2"
+                                                                    Click="MoveItemUp_Click"
+                                                                    Content="↑" />
+                                                            <Button DockPanel.Dock="Right"
+                                                                    Padding="8,2"
+                                                                    Tag="{Binding}"
+                                                                    Click="RemoveOcrReference_Click"
+                                                                    Content="{Binding DataContext.Localization[Remove], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                            <TextBox Margin="0,0,8,0"
+                                                                     VerticalContentAlignment="Center"
+                                                                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </DockPanel>
+                                                        <local:ImagePathEditorControl LabelText="{Binding DataContext.Localization[OcrReferenceTemplate], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                      PathText="{Binding TemplatePath, UpdateSourceTrigger=PropertyChanged}"
+                                                                                      BrowseButtonText="{Binding DataContext.Localization[Browse], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                      RawCaptureButtonText="{Binding DataContext.Localization[CreateTemplateFromRawCapture], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                      ProcessedCaptureButtonText="{Binding DataContext.Localization[CreateTemplateFromProcessedCapture], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                      EditOverwriteButtonText="{Binding DataContext.Localization[RecropAndOverwrite], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                      EditSaveAsButtonText="{Binding DataContext.Localization[RecropAndSaveAs], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                      BrowseCommand="{Binding DataContext.BrowseImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                      CreateRawCommand="{Binding DataContext.CreateRawImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                      CreateProcessedCommand="{Binding DataContext.CreateProcessedImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                      EditOverwriteCommand="{Binding DataContext.RecropImageOverwriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                      EditSaveAsCommand="{Binding DataContext.RecropImageSaveAsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                      CommandParameter="{Binding}" />
+                                                        <Grid Margin="0,2,0,2">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock VerticalAlignment="Center" Text="{Binding DataContext.Localization[OcrReferenceThreshold], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                            <Grid Grid.Column="1">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="32" />
+                                                                    <ColumnDefinition Width="32" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBox Grid.Column="0"
+                                                                         VerticalContentAlignment="Center"
+                                                                         Tag="{Binding}"
+                                                                         Text="{Binding ThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                                         PreviewTextInput="OcrReferenceThreshold_PreviewTextInput"
+                                                                         DataObject.Pasting="OcrReferenceThreshold_Pasting" />
+                                                                <Button Grid.Column="1" Margin="4,0,0,0" Padding="0" Tag="{Binding}" Click="DecreaseOcrReferenceThreshold_Click" Content="-" />
+                                                                <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="{Binding}" Click="IncreaseOcrReferenceThreshold_Click" Content="+" />
+                                                            </Grid>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="{Binding Localization[OcrTargets], Mode=OneWay}" Margin="0,8,0,0">
+                                <StackPanel Margin="8">
+                                    <Button HorizontalAlignment="Left"
+                                            Padding="8,4"
+                                            Command="{Binding AddOcrTargetCommand}"
+                                            Content="{Binding Localization[AddOcrTarget], Mode=OneWay}" />
+                                    <ItemsControl ItemsSource="{Binding OcrTargets}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,8,0,0" Padding="8" BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
+                                                    <StackPanel>
+                                                        <DockPanel Margin="0,0,0,6">
+                                                            <Button DockPanel.Dock="Right"
+                                                                    Padding="8,2"
+                                                                    Click="MoveItemDown_Click"
+                                                                    Content="↓" />
+                                                            <Button DockPanel.Dock="Right"
+                                                                    Margin="0,0,8,0"
+                                                                    Padding="8,2"
+                                                                    Click="MoveItemUp_Click"
+                                                                    Content="↑" />
+                                                            <Button DockPanel.Dock="Right"
+                                                                    Padding="8,2"
+                                                                    Tag="{Binding}"
+                                                                    Click="RemoveOcrTarget_Click"
+                                                                    Content="{Binding DataContext.Localization[Remove], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                            <Button DockPanel.Dock="Right"
+                                                                    Margin="0,0,8,0"
+                                                                    Padding="8,2"
+                                                                    Tag="{Binding}"
+                                                                    Click="SelectOcrRegion_Click"
+                                                                    Content="{Binding DataContext.Localization[SelectOcrRegion], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                            <TextBox Margin="0,0,8,0"
+                                                                     VerticalContentAlignment="Center"
+                                                                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </DockPanel>
+                                                        <Grid Margin="0,0,0,4">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       Text="{Binding DataContext.Localization[ReferenceName], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                            <ComboBox Grid.Column="1"
+                                                                      Margin="8,0,0,0"
+                                                                      IsEnabled="{Binding UseRecognitionAnchor}"
+                                                                      ItemsSource="{Binding DataContext.OcrReferences, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                      DisplayMemberPath="Name"
+                                                                      SelectedValuePath="Name"
+                                                                      SelectedValue="{Binding ReferenceName, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </Grid>
+                                                        <CheckBox Margin="0,2,0,2"
+                                                                  IsChecked="{Binding UseRecognitionAnchor}"
+                                                                  Content="{Binding DataContext.Localization[UseRecognitionAnchor], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <TextBlock Margin="0,0,0,6"
+                                                                   FontSize="11"
+                                                                   Foreground="#77000000"
+                                                                   Text="{Binding DataContext.Localization[UseRecognitionAnchorHint], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <ItemsControl ItemsSource="{Binding RegionParameters}"
+                                                                      ItemTemplateSelector="{StaticResource ParameterEditorTemplateSelector}" />
+                                                        <TextBlock Margin="0,8,0,0"
+                                                                   FontWeight="Bold"
+                                                                   Text="{Binding DataContext.Localization[Preprocessors], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <Button Margin="0,6,0,0"
+                                                                HorizontalAlignment="Left"
+                                                                Padding="8,4"
+                                                                Command="{Binding AddPreprocessorCommand}"
+                                                                Content="{Binding DataContext.Localization[AddPreprocessor], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <ItemsControl ItemsSource="{Binding Preprocessors}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border Margin="0,8,0,0" Padding="8" BorderBrush="#22000000" BorderThickness="1" CornerRadius="4">
+                                                                        <StackPanel>
+                                                                            <DockPanel Margin="0,0,0,6">
+                                                                                <Button DockPanel.Dock="Right"
+                                                                                        Padding="8,2"
+                                                                                        Click="MoveItemDown_Click"
+                                                                                        Content="↓" />
+                                                                                <Button DockPanel.Dock="Right"
+                                                                                        Margin="0,0,8,0"
+                                                                                        Padding="8,2"
+                                                                                        Click="MoveItemUp_Click"
+                                                                                        Content="↑" />
+                                                                                <Button DockPanel.Dock="Right"
+                                                                                        Padding="8,2"
+                                                                                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                                                                        Click="RemoveOcrTargetPreprocessor_Click"
+                                                                                        Content="{Binding DataContext.Localization[Remove], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                                                <Button DockPanel.Dock="Right"
+                                                                                        Margin="0,0,8,0"
+                                                                                        Padding="8,2"
+                                                                                        Tag="{Binding}"
+                                                                                        Click="SelectPreprocessorCropArea_Click"
+                                                                                        IsEnabled="{Binding SupportsCaptureAreaSelection}"
+                                                                                        Content="{Binding DataContext.Localization[SetCropArea], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                                                <ComboBox Margin="0,0,8,0"
+                                                                                          ItemsSource="{Binding Options}"
+                                                                                          SelectedItem="{Binding SelectedOption}"
+                                                                                          DisplayMemberPath="DisplayName" />
+                                                                            </DockPanel>
+                                                                            <ItemsControl ItemsSource="{Binding Parameters}"
+                                                                                          ItemTemplateSelector="{StaticResource ParameterEditorTemplateSelector}" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </GroupBox>
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="{Binding Localization[DistanceMeasurement], Mode=OneWay}" Margin="0,8,0,0" IsEnabled="{Binding CanEditLoadedProfile}">
+                    <StackPanel Margin="8" IsEnabled="{Binding DistanceMeasurementEnabled}">
+                        <GroupBox Header="{Binding Localization[DistanceReferences], Mode=OneWay}">
+                            <StackPanel Margin="8">
+                                <Button HorizontalAlignment="Left"
+                                        Padding="8,4"
+                                        Command="{Binding AddDistanceMeasurementReferenceCommand}"
+                                        Content="{Binding Localization[AddDistanceReference], Mode=OneWay}" />
+                                <ItemsControl ItemsSource="{Binding DistanceMeasurementReferences}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,8,0,0" Padding="8" BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
+                                                <StackPanel>
+                                                    <DockPanel Margin="0,0,0,6">
+                                                        <Button DockPanel.Dock="Right"
+                                                                Padding="8,2"
+                                                                Click="MoveItemDown_Click"
+                                                                Content="↓" />
+                                                        <Button DockPanel.Dock="Right"
+                                                                Margin="0,0,8,0"
+                                                                Padding="8,2"
+                                                                Click="MoveItemUp_Click"
+                                                                Content="↑" />
+                                                        <Button DockPanel.Dock="Right"
+                                                                Padding="8,2"
+                                                                Tag="{Binding}"
+                                                                Click="RemoveDistanceMeasurementReference_Click"
+                                                                Content="{Binding DataContext.Localization[Remove], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <TextBox Margin="0,0,8,0"
+                                                                 VerticalContentAlignment="Center"
+                                                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </DockPanel>
+                                                    <local:ImagePathEditorControl LabelText="{Binding DataContext.Localization[ReferenceTemplate], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  PathText="{Binding TemplatePath, UpdateSourceTrigger=PropertyChanged}"
+                                                                                  BrowseButtonText="{Binding DataContext.Localization[Browse], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  RawCaptureButtonText="{Binding DataContext.Localization[CreateTemplateFromRawCapture], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  ProcessedCaptureButtonText="{Binding DataContext.Localization[CreateTemplateFromProcessedCapture], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  EditOverwriteButtonText="{Binding DataContext.Localization[RecropAndOverwrite], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  EditSaveAsButtonText="{Binding DataContext.Localization[RecropAndSaveAs], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  BrowseCommand="{Binding DataContext.BrowseImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  CreateRawCommand="{Binding DataContext.CreateRawImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  CreateProcessedCommand="{Binding DataContext.CreateProcessedImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  EditOverwriteCommand="{Binding DataContext.RecropImageOverwriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  EditSaveAsCommand="{Binding DataContext.RecropImageSaveAsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  CommandParameter="{Binding}" />
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="140" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="32" />
+                                                            <ColumnDefinition Width="32" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding DataContext.Localization[ReferenceThreshold], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <TextBox Grid.Column="1"
+                                                                 VerticalContentAlignment="Center"
+                                                                 Tag="{Binding}"
+                                                                 Text="{Binding ThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                                 PreviewTextInput="DistanceReferenceThreshold_PreviewTextInput"
+                                                                 DataObject.Pasting="DistanceReferenceThreshold_Pasting" />
+                                                        <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="{Binding}" Click="DecreaseDistanceReferenceThreshold_Click" Content="-" />
+                                                        <Button Grid.Column="3" Margin="4,0,0,0" Padding="0" Tag="{Binding}" Click="IncreaseDistanceReferenceThreshold_Click" Content="+" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="{Binding Localization[DistanceTargets], Mode=OneWay}" Margin="0,8,0,0">
+                            <StackPanel Margin="8">
+                                <Button HorizontalAlignment="Left"
+                                        Padding="8,4"
+                                        Command="{Binding AddDistanceMeasurementTargetCommand}"
+                                        Content="{Binding Localization[AddDistanceTarget], Mode=OneWay}" />
+                                <ItemsControl ItemsSource="{Binding DistanceMeasurementTargets}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,8,0,0" Padding="8" BorderBrush="#33000000" BorderThickness="1" CornerRadius="4">
+                                                <StackPanel>
+                                                    <DockPanel Margin="0,0,0,6">
+                                                        <Button DockPanel.Dock="Right"
+                                                                Padding="8,2"
+                                                                Click="MoveItemDown_Click"
+                                                                Content="↓" />
+                                                        <Button DockPanel.Dock="Right"
+                                                                Margin="0,0,8,0"
+                                                                Padding="8,2"
+                                                                Click="MoveItemUp_Click"
+                                                                Content="↑" />
+                                                        <Button DockPanel.Dock="Right"
+                                                                Padding="8,2"
+                                                                Tag="{Binding}"
+                                                                Click="RemoveDistanceMeasurementTarget_Click"
+                                                                Content="{Binding DataContext.Localization[Remove], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <TextBox Margin="0,0,8,0"
+                                                                 VerticalContentAlignment="Center"
+                                                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </DockPanel>
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="140" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding DataContext.Localization[ReferenceName], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <ComboBox Grid.Column="1"
+                                                                  ItemsSource="{Binding DataContext.DistanceMeasurementReferences, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                  DisplayMemberPath="Name"
+                                                                  SelectedValuePath="Name"
+                                                                  SelectedValue="{Binding ReferenceName, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </Grid>
+                                                    <local:ImagePathEditorControl LabelText="{Binding DataContext.Localization[TargetTemplate], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  PathText="{Binding TemplatePath, UpdateSourceTrigger=PropertyChanged}"
+                                                                                  BrowseButtonText="{Binding DataContext.Localization[Browse], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  RawCaptureButtonText="{Binding DataContext.Localization[CreateTemplateFromRawCapture], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  ProcessedCaptureButtonText="{Binding DataContext.Localization[CreateTemplateFromProcessedCapture], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  EditOverwriteButtonText="{Binding DataContext.Localization[RecropAndOverwrite], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  EditSaveAsButtonText="{Binding DataContext.Localization[RecropAndSaveAs], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
+                                                                                  BrowseCommand="{Binding DataContext.BrowseImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  CreateRawCommand="{Binding DataContext.CreateRawImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  CreateProcessedCommand="{Binding DataContext.CreateProcessedImagePathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  EditOverwriteCommand="{Binding DataContext.RecropImageOverwriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  EditSaveAsCommand="{Binding DataContext.RecropImageSaveAsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                                  CommandParameter="{Binding}" />
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="140" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="32" />
+                                                            <ColumnDefinition Width="32" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding DataContext.Localization[TargetThreshold], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                                        <TextBox Grid.Column="1"
+                                                                 VerticalContentAlignment="Center"
+                                                                 Tag="{Binding}"
+                                                                 Text="{Binding ThresholdText, UpdateSourceTrigger=PropertyChanged}"
+                                                                 PreviewTextInput="DistanceTargetThreshold_PreviewTextInput"
+                                                                 DataObject.Pasting="DistanceTargetThreshold_Pasting" />
+                                                        <Button Grid.Column="2" Margin="4,0,0,0" Padding="0" Tag="{Binding}" Click="DecreaseDistanceTargetThreshold_Click" Content="-" />
+                                                        <Button Grid.Column="3" Margin="4,0,0,0" Padding="0" Tag="{Binding}" Click="IncreaseDistanceTargetThreshold_Click" Content="+" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </GroupBox>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <GroupBox Grid.Row="1" Header="{Binding Localization[Actions], Mode=OneWay}" Margin="0,8,0,0">
+                <WrapPanel Margin="8">
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="ReloadFactories_Click" IsEnabled="{Binding CanExecuteProfileActions}" Content="{Binding Localization[ReloadPlugins], Mode=OneWay}" />
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="LoadProfile_Click" Content="{Binding Localization[LoadProfile], Mode=OneWay}" />
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="SaveProfile_Click" IsEnabled="{Binding CanSaveProfile}" Content="{Binding Localization[SaveProfile], Mode=OneWay}" />
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="CreateBlankProfile_Click" Content="{Binding Localization[CreateNewProfile], Mode=OneWay}" />
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="AutoCalibrateProfile_Click" IsEnabled="{Binding CanExecuteProfileActions}" Content="{Binding Localization[AutoCalibrateProfile], Mode=OneWay}" />
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="TestRun_Click" IsEnabled="{Binding CanExecuteProfileActions}" Content="{Binding Localization[TestOnce], Mode=OneWay}" />
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="Start_Click" IsEnabled="{Binding CanExecuteProfileActions}" Content="{Binding Localization[Start], Mode=OneWay}" />
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="Stop_Click" IsEnabled="{Binding IsRunning}" Content="{Binding Localization[Stop], Mode=OneWay}" />
+                </WrapPanel>
+            </GroupBox>
+        </Grid>
+
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="220" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Padding="12" BorderBrush="#22000000" BorderThickness="1" CornerRadius="4">
+                <StackPanel>
+                    <TextBlock FontWeight="Bold" Text="{Binding StatusMessage}" />
+                    <TextBlock Margin="0,6,0,0"
+                               FontWeight="SemiBold"
+                               Foreground="#B35A00"
+                               Text="{Binding OperationStatusText}" />
+                    <TextBlock Margin="0,6,0,0" Text="{Binding LatestDetection}" />
+                    <TextBlock Margin="0,4,0,0" Text="{Binding LatestText}" TextWrapping="Wrap" />
+                    <TextBlock Margin="0,4,0,0">
+                        <Run Text="{Binding Localization[MeasuredFps], Mode=OneWay}" />
+                        <Run Text=": " />
+                        <Run Text="{Binding LastFps, Mode=OneWay, StringFormat=F1}" />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Row="1" Margin="0,12,0,12" BorderBrush="#22000000" BorderThickness="1" CornerRadius="4">
+                <Grid Background="#11000000">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Padding="8,2" Command="{Binding PreviousHistoryFrameCommand}" Content="&lt;" />
+                            <Slider Grid.Column="1" Margin="8,0" Minimum="0" Maximum="{Binding FrameHistoryMaximum}" Value="{Binding SelectedHistoryIndex, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="2" Padding="8,2" Command="{Binding NextHistoryFrameCommand}" Content="&gt;" />
+                        </Grid>
+                        <TextBlock Grid.Row="1" Margin="0,0,0,6" HorizontalAlignment="Center" Text="{Binding SelectedHistoryLabel}" />
+                        <Image Grid.Row="2"
+                               x:Name="PreviewImageControl"
+                               Source="{Binding PreviewImage}"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Stretch"
+                               MouseMove="PreviewImage_MouseMove"
+                               MouseLeave="PreviewImage_MouseLeave" />
+                    </Grid>
+                    <TextBlock HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="20"
+                               Foreground="#99000000"
+                               Text="{Binding Localization[Preview], Mode=OneWay}" />
+                </Grid>
+            </Border>
+
+            <TabControl Grid.Row="2">
+                <TabItem Header="{Binding Localization[RecognitionEvents], Mode=OneWay}">
+                    <DataGrid ItemsSource="{Binding EventLog}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Binding="{Binding Timestamp}" Width="120">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Time], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding EventDescription}" Width="140">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Mode], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding RecognizedText}" Width="*">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Text], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding Confidence, StringFormat=F3}" Width="100">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Confidence], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+                <TabItem Header="{Binding Localization[RecognitionCycles], Mode=OneWay}">
+                    <DataGrid ItemsSource="{Binding CycleLog}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Binding="{Binding Timestamp}" Width="120">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Time], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding DetectionState}" Width="100">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[DetectionState], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding RecognizerLabel}" Width="120">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[RecognizerLabel], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridCheckBoxColumn Binding="{Binding EventTriggered, Mode=OneWay}" Width="70">
+                                <DataGridCheckBoxColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Triggered], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridCheckBoxColumn.Header>
+                            </DataGridCheckBoxColumn>
+                            <DataGridTextColumn Binding="{Binding Confidence, StringFormat=F3}" Width="90">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Confidence], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding FramesPerSecond, StringFormat=F1}" Width="80">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[MeasuredFps], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding RecognizedText}" Width="*">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Text], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+                <TabItem Header="{Binding Localization[ErrorLog], Mode=OneWay}">
+                    <DataGrid ItemsSource="{Binding ErrorLog}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Binding="{Binding Timestamp}" Width="120">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Time], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding Source}" Width="140">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Source], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding Summary}" Width="220">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Summary], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding Details}" Width="*">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="{Binding DataContext.Localization[Details], RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}" />
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</UserControl>

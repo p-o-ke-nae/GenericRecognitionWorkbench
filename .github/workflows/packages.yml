@@ -1,0 +1,140 @@
+name: Build and publish packages
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  pull_request:
+
+concurrency:
+  group: packages-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  build-test-pack:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      package-version: ${{ steps.version.outputs.value }}
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Determine package version
+        id: version
+        shell: pwsh
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if ($env:REF_TYPE -eq "tag") {
+            $tag = $env:REF_NAME
+            $strictSemVerTag = '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?$'
+            if ($tag -cnotmatch $strictSemVerTag) {
+              throw "Release tag '$tag' is invalid. Use vMAJOR.MINOR.PATCH with an optional SemVer prerelease suffix and no build metadata."
+            }
+
+            $version = $tag.Substring(1)
+          }
+          else {
+            $version = (dotnet msbuild .\Recognition.Core\Recognition.Core.csproj -nologo -getProperty:Version).Trim()
+          }
+
+          "value=$version" >> $env:GITHUB_OUTPUT
+          "PACKAGE_VERSION=$version" >> $env:GITHUB_ENV
+          Write-Host "Package version: $version"
+
+      - name: Restore
+        run: dotnet restore .\GenericRecognitionWorkbench.slnx
+
+      - name: Build
+        run: >-
+          dotnet build .\GenericRecognitionWorkbench.slnx
+          -c Release
+          --no-restore
+          -p:Version=${{ steps.version.outputs.value }}
+          -p:RepositoryUrl=https://github.com/${{ github.repository }}
+          -p:RepositoryCommit=${{ github.sha }}
+
+      - name: Test
+        run: >-
+          dotnet test .\GenericRecognitionWorkbench.slnx
+          -c Release
+          --no-build
+          --no-restore
+          -p:Version=${{ steps.version.outputs.value }}
+
+      - name: Pack
+        shell: pwsh
+        run: |
+          $projects = @(
+            '.\Recognition.Core\Recognition.Core.csproj',
+            '.\Recognition.Infrastructure\Recognition.Infrastructure.csproj',
+            '.\Recognition.Wpf\Recognition.Wpf.csproj'
+          )
+
+          foreach ($project in $projects) {
+            dotnet pack $project `
+              -c Release `
+              --no-build `
+              --no-restore `
+              -o .\artifacts\packages `
+              -p:Version=$env:PACKAGE_VERSION `
+              -p:RepositoryUrl=https://github.com/${{ github.repository }} `
+              -p:RepositoryCommit=${{ github.sha }}
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+
+          $packages = @(Get-ChildItem .\artifacts\packages\*.nupkg)
+          if ($packages.Count -ne 3) {
+            throw "Expected exactly three packages, but found $($packages.Count)."
+          }
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: packages-${{ steps.version.outputs.value }}
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: build-test-pack
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Download package artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: packages-${{ needs.build-test-pack.outputs.package-version }}
+          path: artifacts/packages
+
+      - name: Publish to GitHub Packages
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          dotnet nuget push .\artifacts\packages\*.nupkg `
+            --api-key $env:GITHUB_TOKEN `
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" `
+            --skip-duplicate

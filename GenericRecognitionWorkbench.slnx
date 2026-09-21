@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Recognition.Core/Recognition.Core.csproj" />
+  <Project Path="Recognition.Infrastructure/Recognition.Infrastructure.csproj" />
+  <Project Path="Recognition.Wpf/Recognition.Wpf.csproj" />
+</Solution>
