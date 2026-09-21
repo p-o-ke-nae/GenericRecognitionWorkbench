@@ -13,5 +13,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
     <ProjectReference Include="..\Recognition.Core\Recognition.Core.csproj" />
     <ProjectReference Include="..\Recognition.Infrastructure\Recognition.Infrastructure.csproj" />
+    <ProjectReference Include="..\Recognition.Wpf\Recognition.Wpf.csproj" />
   </ItemGroup>
 </Project>

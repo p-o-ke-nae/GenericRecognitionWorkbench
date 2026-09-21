@@ -41,6 +41,7 @@ public sealed class RecognitionPluginCatalog : IRecognitionPluginCatalog
 
         var processors = new List<IImageProcessorFactory>
         {
+            new AspectRatioImageProcessorFactory(),
             new CropImageProcessorFactory(),
             new GrayscaleImageProcessorFactory(),
             new ThresholdImageProcessorFactory(),

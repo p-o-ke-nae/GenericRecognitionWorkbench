@@ -1,6 +1,7 @@
 namespace Recognition.Wpf;
 
 public sealed class RecognitionCycleLogEntry(
+    Guid cycleId,
     string timestamp,
     string detectionState,
     string recognizerLabel,
@@ -9,6 +10,20 @@ public sealed class RecognitionCycleLogEntry(
     double confidence,
     double fps)
 {
+    public RecognitionCycleLogEntry(
+        string timestamp,
+        string detectionState,
+        string recognizerLabel,
+        bool eventTriggered,
+        string? recognizedText,
+        double confidence,
+        double fps)
+        : this(Guid.NewGuid(), timestamp, detectionState, recognizerLabel, eventTriggered, recognizedText, confidence, fps)
+    {
+    }
+
+    public Guid CycleId { get; } = cycleId;
+
     public string Timestamp { get; } = timestamp;
 
     public string DetectionState { get; } = detectionState;

@@ -81,6 +81,10 @@ public sealed class RuntimeTests(ITestOutputHelper output)
         Assert.Same(result.SourceFrame, state.BufferedFrames[^1].Source);
         Assert.Same(result.PreviewFrame, state.BufferedFrames[^1].Processed);
         Assert.Same(result.PreviewFrame, state.FrameHistory!.Entries[^1].ProcessedFrame);
+        Assert.NotEqual(Guid.Empty, result.CycleId);
+        Assert.Equal(result.CycleId, state.FrameHistory.Entries[^1].CycleId);
+        Assert.Same(result.SourceFrame, result.CycleSourceFrame);
+        Assert.Same(result.PreviewFrame, result.CyclePreviewFrame);
         Assert.True(double.Parse(result.Metadata["CycleMilliseconds"], CultureInfo.InvariantCulture) >= 0);
         Assert.Contains(result.Metadata["TargetPeriodExceeded"], new[] { "true", "false" });
         Assert.Equal("31", result.Metadata["FrameSequence"]);
@@ -101,6 +105,10 @@ public sealed class RuntimeTests(ITestOutputHelper output)
         var current = runner.ExecuteCycle(profile, pipeline, state, true, true, default);
         Assert.Same(previous.SourceFrame, current.SourceFrame);
         Assert.Same(previous.PreviewFrame, current.PreviewFrame);
+        Assert.NotSame(current.CycleSourceFrame, current.SourceFrame);
+        Assert.NotSame(current.CyclePreviewFrame, current.PreviewFrame);
+        Assert.Equal(current.CycleId, state.FrameHistory!.Entries[^1].CycleId);
+        Assert.Same(current.CyclePreviewFrame, state.FrameHistory.Entries[^1].ProcessedFrame);
     }
 
     [Fact]
@@ -139,6 +147,24 @@ public sealed class RuntimeTests(ITestOutputHelper output)
         Assert.Null(Assert.Single(result.FrameHistory!.Entries).SourceFrame);
     }
 
+    [Fact]
+    public async Task ExecuteOnceWithSuppliedSourceFrameSkipsCaptureAndCaptureDiagnostics()
+    {
+        var catalog = new SyntheticCatalog();
+        catalog.SourceFactory.ThrowOnCapture = true;
+        var runner = new RecognitionRunner(catalog);
+        var sourceFrame = new RecognitionFrame(new byte[SourceBytes], 1280, 720, 1280 * 3, FramePixelFormat.Bgr24, DateTimeOffset.UtcNow);
+
+        var result = await runner.ExecuteOnceAsync(CreateProfile(), sourceFrame);
+
+        Assert.True(result.IsSingleShot);
+        Assert.Same(sourceFrame, result.SourceFrame);
+        Assert.Equal(77, result.PreviewFrame.Width);
+        Assert.Equal(0, catalog.SourceFactory.CaptureCount);
+        Assert.DoesNotContain("FrameSequence", result.Metadata.Keys);
+        Assert.DoesNotContain("DroppedFrames", result.Metadata.Keys);
+    }
+
     private static RecognitionProfile CreateProfile() => new()
     {
         TargetFps = 60,
@@ -158,7 +184,8 @@ public sealed class RuntimeTests(ITestOutputHelper output)
 
     private sealed class SyntheticCatalog : IRecognitionPluginCatalog
     {
-        public IReadOnlyList<IFrameSourceFactory> FrameSourceFactories { get; } = [new SourceFactory()];
+        public SourceFactory SourceFactory { get; } = new();
+        public IReadOnlyList<IFrameSourceFactory> FrameSourceFactories => [SourceFactory];
         public IReadOnlyList<IRecognitionMethodFactory> RecognitionMethodFactories { get; } = [new MethodFactory()];
         public IReadOnlyList<IImageProcessorFactory> ImageProcessorFactories { get; } = [new CropImageProcessorFactory()];
         public IReadOnlyList<IOcrEngineFactory> OcrEngineFactories => [];
@@ -167,11 +194,25 @@ public sealed class RuntimeTests(ITestOutputHelper output)
 
     private sealed class SourceFactory : IFrameSourceFactory
     {
+        public int CaptureCount { get; private set; }
+
+        public bool ThrowOnCapture { get; set; }
+
         public ComponentDescriptor Descriptor { get; } = new("synthetic", "Synthetic", "", []);
-        public IFrameSource Create(IReadOnlyDictionary<string, string> parameters) => new SyntheticSource();
+
+        public IFrameSource Create(IReadOnlyDictionary<string, string> parameters) => new SyntheticSource(this);
+
+        public void RecordCapture()
+        {
+            CaptureCount++;
+            if (ThrowOnCapture)
+            {
+                throw new InvalidOperationException("Capture should not have been called.");
+            }
+        }
     }
 
-    private sealed class SyntheticSource : IFrameSource, IFrameSourceDiagnostics
+    private sealed class SyntheticSource(SourceFactory owner) : IFrameSource, IFrameSourceDiagnostics
     {
         private readonly byte[][] buffers = [new byte[SourceBytes], new byte[SourceBytes]];
         public long FrameSequence { get; private set; }
@@ -180,6 +221,7 @@ public sealed class RuntimeTests(ITestOutputHelper output)
         public ValueTask<RecognitionFrame> CaptureAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            owner.RecordCapture();
             var buffer = buffers[++FrameSequence % 2];
             buffer[0] = (byte)FrameSequence;
             var owned = new byte[SourceBytes];
@@ -201,4 +243,5 @@ public sealed class RuntimeTests(ITestOutputHelper output)
         public RecognitionMatch Evaluate(RecognitionFrame frame) => new(true, 1);
         public void Dispose() { }
     }
+
 }

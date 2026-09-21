@@ -9,9 +9,9 @@ Reusable projects extracted from AutoCountTool:
 ## Package versions
 
 Package metadata and the developer default are centralized in
-`Directory.Build.props`. Local packs use the `0.1.7-local` developer version by
+`Directory.Build.props`. Local packs use the `0.1.16-local` developer version by
 default. That prerelease version is intended for isolated workbench development;
-it does **not** satisfy a consumer's exact `0.1.7` Release reference.
+it does **not** satisfy a consumer's exact `0.1.16` Release reference.
 
 Packages are produced in:
 
@@ -30,15 +30,15 @@ Package IDs:
 ## Building and publishing packages
 
 To populate the local NuGet folder for a consumer that references the formal
-`0.1.7` version, override the centralized developer suffix explicitly:
+`0.1.16` version, override the centralized developer suffix explicitly:
 
 ```powershell
-dotnet pack .\Recognition.Core\Recognition.Core.csproj -c Release -o .\LocalPackages -p:Version=0.1.7
-dotnet pack .\Recognition.Infrastructure\Recognition.Infrastructure.csproj -c Release -o .\LocalPackages -p:Version=0.1.7
-dotnet pack .\Recognition.Wpf\Recognition.Wpf.csproj -c Release -o .\LocalPackages -p:Version=0.1.7
+dotnet pack .\Recognition.Core\Recognition.Core.csproj -c Release -o .\LocalPackages -p:Version=0.1.16
+dotnet pack .\Recognition.Infrastructure\Recognition.Infrastructure.csproj -c Release -o .\LocalPackages -p:Version=0.1.16
+dotnet pack .\Recognition.Wpf\Recognition.Wpf.csproj -c Release -o .\LocalPackages -p:Version=0.1.16
 ```
 
-Omitting `-p:Version=0.1.7` preserves the convenient `0.1.7-local` default for
+Omitting `-p:Version=0.1.16` preserves the convenient `0.1.16-local` default for
 isolated development only.
 
 Release packages are built by `.github/workflows/packages.yml`. Push a tag in

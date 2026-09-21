@@ -79,6 +79,11 @@ public partial class RecognitionWorkbenchControl : UserControl
         await ExecuteWithErrorHandlingAsync(() => RequireViewModel().RunTestAsync(), "Test Run Error");
     }
 
+    private async void TestSelectedHistoryFrame_Click(object sender, RoutedEventArgs e)
+    {
+        await ExecuteWithErrorHandlingAsync(() => RequireViewModel().RunSelectedHistoryFrameTestAsync(), "History Test Run Error");
+    }
+
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
         await ExecuteWithErrorHandlingAsync(async () =>

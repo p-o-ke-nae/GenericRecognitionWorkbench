@@ -2,7 +2,13 @@ namespace Recognition.Core;
 
 public sealed class RecognitionCycleResult
 {
+    public Guid CycleId { get; init; } = Guid.NewGuid();
+
     public required DateTimeOffset Timestamp { get; init; }
+
+    public RecognitionFrame? CycleSourceFrame { get; init; }
+
+    public RecognitionFrame? CyclePreviewFrame { get; init; }
 
     public required RecognitionFrame SourceFrame { get; init; }
 

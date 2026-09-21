@@ -799,6 +799,7 @@
                     <Button Margin="0,0,8,8" Padding="10,6" Click="CreateBlankProfile_Click" Content="{Binding Localization[CreateNewProfile], Mode=OneWay}" />
                     <Button Margin="0,0,8,8" Padding="10,6" Click="AutoCalibrateProfile_Click" IsEnabled="{Binding CanExecuteProfileActions}" Content="{Binding Localization[AutoCalibrateProfile], Mode=OneWay}" />
                     <Button Margin="0,0,8,8" Padding="10,6" Click="TestRun_Click" IsEnabled="{Binding CanExecuteProfileActions}" Content="{Binding Localization[TestOnce], Mode=OneWay}" />
+                    <Button Margin="0,0,8,8" Padding="10,6" Click="TestSelectedHistoryFrame_Click" IsEnabled="{Binding CanRunSelectedHistoryFrameTest}" Content="{Binding Localization[TestSelectedHistoryFrame], Mode=OneWay}" />
                     <Button Margin="0,0,8,8" Padding="10,6" Click="Start_Click" IsEnabled="{Binding CanExecuteProfileActions}" Content="{Binding Localization[Start], Mode=OneWay}" />
                     <Button Margin="0,0,8,8" Padding="10,6" Click="Stop_Click" IsEnabled="{Binding IsRunning}" Content="{Binding Localization[Stop], Mode=OneWay}" />
                 </WrapPanel>
@@ -868,6 +869,7 @@
             <TabControl Grid.Row="2">
                 <TabItem Header="{Binding Localization[RecognitionEvents], Mode=OneWay}">
                     <DataGrid ItemsSource="{Binding EventLog}"
+                              SelectedItem="{Binding SelectedEventLogEntry, Mode=TwoWay}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
@@ -898,6 +900,7 @@
                 </TabItem>
                 <TabItem Header="{Binding Localization[RecognitionCycles], Mode=OneWay}">
                     <DataGrid ItemsSource="{Binding CycleLog}"
+                              SelectedItem="{Binding SelectedCycleLogEntry, Mode=TwoWay}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"

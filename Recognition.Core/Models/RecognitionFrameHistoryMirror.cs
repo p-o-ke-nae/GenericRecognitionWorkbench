@@ -15,8 +15,16 @@ public sealed class RecognitionFrameHistoryMirror
         ArgumentNullException.ThrowIfNull(result);
         if (result.IsSingleShot || result.FrameHistory is null)
         {
-            Entries.Add(new RecognitionFrameHistoryEntry(result.Timestamp,
-                retainSourceFrames ? result.SourceFrame : null, result.PreviewFrame));
+            if (!Entries.Any(entry => entry.CycleId == result.CycleId))
+            {
+                var sourceFrame = result.CycleSourceFrame ?? result.SourceFrame;
+                var previewFrame = result.CyclePreviewFrame ?? result.PreviewFrame;
+                Entries.Add(new RecognitionFrameHistoryEntry(result.Timestamp,
+                    retainSourceFrames ? sourceFrame : null, previewFrame)
+                {
+                    CycleId = result.CycleId
+                });
+            }
         }
         else
         {
@@ -27,7 +35,10 @@ public sealed class RecognitionFrameHistoryMirror
             }
             foreach (var entry in history.GetEntriesAfter(lastSequence, out _))
             {
-                Entries.Add(entry);
+                if (!Entries.Any(candidate => candidate.CycleId == entry.CycleId))
+                {
+                    Entries.Add(entry);
+                }
                 lastSequence = entry.Sequence;
             }
         }
@@ -41,6 +52,16 @@ public sealed class RecognitionFrameHistoryMirror
             removed++;
         }
         return removed;
+    }
+
+    public int IndexOf(Guid cycleId)
+    {
+        for (var index = 0; index < Entries.Count; index++)
+        {
+            if (Entries[index].CycleId == cycleId) return index;
+        }
+
+        return -1;
     }
 
     public RecognitionFrame? GetSourceFrame(RecognitionFrameHistoryEntry? selectedEntry, RecognitionFrame? latestSourceFrame)

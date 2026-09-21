@@ -8,25 +8,25 @@
 |---|---|
 | 共有ソースの正本 | `C:\Users\o_leg\source\repos\GenericRecognitionWorkbench` |
 | ローカル NuGet 出力先 | `C:\Users\o_leg\source\repos\GenericRecognitionWorkbench\LocalPackages` |
-| 正式な利用版 | `0.1.11` |
-| 単体開発用の既定版 | `0.1.7-local` (`Directory.Build.props` で管理) |
+| 正式な利用版 | `0.1.16` |
+| 単体開発用の既定版 | `0.1.16-local` (`Directory.Build.props` で管理) |
 | AutoCountTool 側の利用方法 | `AutoCountTool\AutoCountTool.csproj` の `PackageReference` |
 
 ## 1. ローカル NuGet へ公開する
 
-正式版 `0.1.11` を参照する利用側へ供給する場合は、リポジトリルートで
+正式版 `0.1.16` を参照する利用側へ供給する場合は、リポジトリルートで
 `Version` を明示して次を実行する。
 
 ```powershell
-dotnet pack .\Recognition.Core\Recognition.Core.csproj -c Release -o .\LocalPackages -p:Version=0.1.11
-dotnet pack .\Recognition.Infrastructure\Recognition.Infrastructure.csproj -c Release -o .\LocalPackages -p:Version=0.1.11
-dotnet pack .\Recognition.Wpf\Recognition.Wpf.csproj -c Release -o .\LocalPackages -p:Version=0.1.11
+dotnet pack .\Recognition.Core\Recognition.Core.csproj -c Release -o .\LocalPackages -p:Version=0.1.16
+dotnet pack .\Recognition.Infrastructure\Recognition.Infrastructure.csproj -c Release -o .\LocalPackages -p:Version=0.1.16
+dotnet pack .\Recognition.Wpf\Recognition.Wpf.csproj -c Release -o .\LocalPackages -p:Version=0.1.16
 ```
 
-`-p:Version=0.1.11` を省略すると `Directory.Build.props` の
-`VersionPrefix=0.1.7` と `VersionSuffix=local` により
-`0.1.7-local` が生成される。これは共有パッケージ単体の開発には便利だが、
-正式版 `0.1.11` を完全一致で参照する Release ビルドの復元には使用できない。
+`-p:Version=0.1.16` を省略すると `Directory.Build.props` の
+`VersionPrefix=0.1.16` と `VersionSuffix=local` により
+`0.1.16-local` が生成される。これは共有パッケージ単体の開発には便利だが、
+正式版 `0.1.16` を完全一致で参照する Release ビルドの復元には使用できない。
 
 公開後は利用側プロジェクトで復元・ビルドする。
 
@@ -53,13 +53,13 @@ dotnet build ..\AutoCountTool\AutoCountTool\AutoCountTool.csproj -c Debug
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="GenericRecognition.Workbench.Abstractions" Version="0.1.11" />
-  <PackageReference Include="GenericRecognition.Workbench.Infrastructure" Version="0.1.11" />
-  <PackageReference Include="GenericRecognition.Workbench.Wpf" Version="0.1.11" />
+  <PackageReference Include="GenericRecognition.Workbench.Abstractions" Version="[0.1.16]" />
+  <PackageReference Include="GenericRecognition.Workbench.Infrastructure" Version="[0.1.16]" />
+  <PackageReference Include="GenericRecognition.Workbench.Wpf" Version="[0.1.16]" />
 </ItemGroup>
 ```
 
-将来の公開版を利用する場合は、`0.1.11` をリリースタグに対応する版
+将来の公開版を利用する場合は、`0.1.16` をリリースタグに対応する版
 （例: `1.2.3`）へ置き換える。
 
 ## 3. GitHub Packages へ公開する
@@ -143,7 +143,16 @@ var catalog = new RecognitionPluginCatalog(
 動画ファイル、カメラ、画面キャプチャなど入力方法に依存せず、認識ループが
 保持する同じ履歴を参照する。ワークベンチの履歴スライダーまたは前後ボタンで
 対象フレームを選び、生画像と処理後画像を切り替えてテンプレート作成、
-トリミング、OCR 領域指定などを実行する。
+トリミング、OCR 領域指定、**選択履歴フレームをテスト** などを実行する。
+
+過去フレームを前処理から再評価したい場合は、`RetainSourceFramesInHistory` を
+有効にして生画像履歴を保持する。無効時は最新フレームだけが生画像を再利用でき、
+古い履歴フレームでは案内メッセージを表示して停止する。
 
 履歴はメモリ上で保持され、設定秒数を超えた古いフレームは破棄される。高解像度・
 高 FPS で長時間保持する場合は、メモリ使用量を考慮して保持秒数を調整する。
+
+認識サイクルログまたは認識イベントログを選択すると、同じ判定サイクルの履歴
+フレームへ移動する。履歴スライダーや前後ボタンから選択した場合も、保持されて
+いる対応ログが選択される。ログだけが残り履歴が期限切れの場合は、別フレームへ
+誤移動せず、対応フレームが期限切れである旨を表示する。

@@ -59,6 +59,20 @@ public sealed class HistoryAndCaptureTests
     }
 
     [Fact]
+    public void HistoryPreservesStableCycleIdentity()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var cycleId = Guid.NewGuid();
+        var history = new RecognitionFrameHistory(TimeSpan.FromSeconds(10), true);
+
+        history.Add(cycleId, timestamp, Frame(), Frame());
+
+        var entry = Assert.Single(history.Entries);
+        Assert.Equal(cycleId, entry.CycleId);
+        Assert.Equal(cycleId, entry.Copy().CycleId);
+    }
+
+    [Fact]
     public void HistoryRingWrapsAndZeroRetentionKeepsLatest()
     {
         var now = DateTimeOffset.UtcNow;
@@ -186,6 +200,24 @@ public sealed class HistoryAndCaptureTests
         Assert.Equal(4, mirror.Entries.Count);
         mirror.Clear();
         Assert.Empty(mirror.Entries);
+    }
+
+    [Fact]
+    public void MirrorCorrelatesSameTimestampCyclesAndDeduplicatesReappliedResult()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var mirror = new RecognitionFrameHistoryMirror();
+        var first = Result(timestamp, null, singleShot: true);
+        var second = Result(timestamp, null, singleShot: true);
+
+        mirror.Apply(first, TimeSpan.FromSeconds(10), false);
+        mirror.Apply(second, TimeSpan.FromSeconds(10), false);
+        mirror.Apply(first, TimeSpan.FromSeconds(10), false);
+
+        Assert.Equal(2, mirror.Entries.Count);
+        Assert.NotEqual(first.CycleId, second.CycleId);
+        Assert.Equal(0, mirror.IndexOf(first.CycleId));
+        Assert.Equal(1, mirror.IndexOf(second.CycleId));
     }
 
     [Theory]

@@ -26,6 +26,10 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
     private readonly RecognitionFrameHistoryMirror historyMirror = new();
     private bool retainSourceFramesInHistory;
     private RecognitionFrameHistoryEntry? selectedHistoryEntry;
+    private RecognitionLogEntry? selectedEventLogEntry;
+    private RecognitionCycleLogEntry? selectedCycleLogEntry;
+    private bool synchronizingLogAndHistorySelection;
+    private bool correspondingFrameUnavailable;
     private string frameHistoryRetentionSecondsText = "10";
     private int selectedHistoryIndex = -1;
     private bool suppressProfileOperationStateUpdates;
@@ -202,6 +206,34 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
 
     public int FrameHistoryMaximum => Math.Max(0, FrameHistoryEntries.Count - 1);
 
+    public RecognitionLogEntry? SelectedEventLogEntry
+    {
+        get => selectedEventLogEntry;
+        set
+        {
+            if (SetProperty(ref selectedEventLogEntry, value)
+                && value is not null
+                && !synchronizingLogAndHistorySelection)
+            {
+                SynchronizeFromLog(value.CycleId);
+            }
+        }
+    }
+
+    public RecognitionCycleLogEntry? SelectedCycleLogEntry
+    {
+        get => selectedCycleLogEntry;
+        set
+        {
+            if (SetProperty(ref selectedCycleLogEntry, value)
+                && value is not null
+                && !synchronizingLogAndHistorySelection)
+            {
+                SynchronizeFromLog(value.CycleId);
+            }
+        }
+    }
+
     public int SelectedHistoryIndex
     {
         get => selectedHistoryIndex;
@@ -210,8 +242,11 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
             var index = Math.Clamp(value, -1, FrameHistoryMaximum);
             if (SetProperty(ref selectedHistoryIndex, index))
             {
+                correspondingFrameUnavailable = false;
                 selectedHistoryEntry = index >= 0 ? FrameHistoryEntries[index] : null;
+                SynchronizeLogsFromHistory();
                 RaisePropertyChanged(nameof(SelectedHistoryLabel));
+                RaisePropertyChanged(nameof(CanRunSelectedHistoryFrameTest));
                 RefreshPreviewImage();
                 RefreshOcrReferencePreview();
                 PreviousHistoryFrameCommand.RaiseCanExecuteChanged();
@@ -269,6 +304,7 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
             {
                 RaisePropertyChanged(nameof(CanEditLoadedProfile));
                 RaisePropertyChanged(nameof(CanExecuteProfileActions));
+                RaisePropertyChanged(nameof(CanRunSelectedHistoryFrameTest));
                 RaisePropertyChanged(nameof(CanSaveProfile));
                 RaisePropertyChanged(nameof(ProfileLoadHint));
             }
@@ -278,6 +314,8 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
     public bool CanEditLoadedProfile => !RequiresProfileLoad;
 
     public bool CanExecuteProfileActions => !RequiresProfileLoad;
+
+    public bool CanRunSelectedHistoryFrameTest => CanExecuteProfileActions && SelectedHistoryIndex >= 0;
 
     public bool CanSaveProfile => !IsDifferentProfileSelected();
 
@@ -641,6 +679,42 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         }
 
         StatusMessage = Localization["TestRunCompleted"];
+    }
+
+    public async Task RunSelectedHistoryFrameTestAsync()
+    {
+        EnsureProfileLoadedForOperations();
+        if (selectedHistoryEntry is null)
+        {
+            StatusMessage = Localization["HistoryFrameSelectionRequired"];
+            return;
+        }
+
+        var selectedSourceFrame = GetSelectedSourceFrame();
+        if (selectedSourceFrame is null)
+        {
+            StatusMessage = GetSourceUnavailableMessage("HistoryFrameTestNeedsCapture");
+            return;
+        }
+
+        var restartRecognition = IsRunning;
+        if (restartRecognition)
+        {
+            await StopAsync();
+        }
+
+        BeginOperation(Localization["HistoryTestRunInProgress"]);
+        var result = await runner.ExecuteOnceAsync(BuildRuntimeProfile(), selectedSourceFrame);
+        EndOperation();
+        ApplyResult(result, forceEventLog: true);
+        if (restartRecognition)
+        {
+            BeginOperation(Localization["RecognitionResumeInProgress"]);
+            await StartAsync();
+            return;
+        }
+
+        StatusMessage = Localization["HistoryTestRunCompleted"];
     }
 
     public async Task StartAsync()
@@ -1316,8 +1390,10 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         }
 
         historyMirror.Clear();
+        correspondingFrameUnavailable = false;
         selectedHistoryEntry = null;
         SelectedHistoryIndex = -1;
+        SetSynchronizedLogSelection(null, null);
         RaisePropertyChanged(nameof(FrameHistoryMaximum));
         UpdateProfileOperationState();
         RefreshPreviewImage();
@@ -1326,12 +1402,14 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
     private void ApplyResult(RecognitionCycleResult result, bool forceEventLog = false, bool updateEventLog = true)
     {
         lastResult = result;
-        latestSourceFrame = result.SourceFrame;
-        latestProcessedFrame = result.PreviewFrame;
-        var wasAtLatest = SelectedHistoryIndex < 0 || SelectedHistoryIndex == FrameHistoryEntries.Count - 1;
+        latestSourceFrame = result.CycleSourceFrame ?? result.SourceFrame;
+        latestProcessedFrame = result.CyclePreviewFrame ?? result.PreviewFrame;
+        var wasAtLatest = !correspondingFrameUnavailable
+            && (SelectedHistoryIndex < 0 || SelectedHistoryIndex == FrameHistoryEntries.Count - 1);
+        var selectedCycleId = selectedHistoryEntry?.CycleId;
         var retention = TimeSpan.FromSeconds(Math.Clamp(
             NumericInputHelper.ParseInt32OrDefault(FrameHistoryRetentionSecondsText, 10), 0, 3600));
-        var removed = historyMirror.Apply(result, retention, RetainSourceFramesInHistory);
+        historyMirror.Apply(result, retention, RetainSourceFramesInHistory);
         RaisePropertyChanged(nameof(FrameHistoryMaximum));
         if (FrameHistoryEntries.Count == 0)
         {
@@ -1346,14 +1424,28 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         }
         else
         {
-            selectedHistoryIndex = Math.Clamp(selectedHistoryIndex - removed, 0, FrameHistoryEntries.Count - 1);
-            selectedHistoryEntry = FrameHistoryEntries[selectedHistoryIndex];
-            RaisePropertyChanged(nameof(SelectedHistoryIndex));
-            RaisePropertyChanged(nameof(SelectedHistoryLabel));
+            var retainedIndex = selectedCycleId is { } cycleId ? historyMirror.IndexOf(cycleId) : -1;
+            if (retainedIndex >= 0)
+            {
+                selectedHistoryIndex = retainedIndex;
+                selectedHistoryEntry = FrameHistoryEntries[retainedIndex];
+                RaisePropertyChanged(nameof(SelectedHistoryIndex));
+                RaisePropertyChanged(nameof(SelectedHistoryLabel));
+            }
+            else
+            {
+                correspondingFrameUnavailable = true;
+                selectedHistoryEntry = null;
+                selectedHistoryIndex = -1;
+                RaisePropertyChanged(nameof(SelectedHistoryIndex));
+                RaisePropertyChanged(nameof(SelectedHistoryLabel));
+                RaisePropertyChanged(nameof(CanRunSelectedHistoryFrameTest));
+                StatusMessage = Localization["CorrespondingFrameExpired"];
+            }
         }
         PreviousHistoryFrameCommand.RaiseCanExecuteChanged();
         NextHistoryFrameCommand.RaiseCanExecuteChanged();
-        PreviewImage = BuildPreviewImage(result);
+        RefreshPreviewImage();
         RefreshOcrReferencePreview();
         LastFps = result.FramesPerSecond;
         var stateText = result.IsDetected ? Localization["Detected"] : Localization["NotDetected"];
@@ -1370,11 +1462,15 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
 
         if (updateEventLog && (forceEventLog || result.EventTriggered))
         {
-            EventLog.Insert(0, new RecognitionLogEntry(
-                result.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff"),
-                Localization.EventMode(ParseEventMode(result.Metadata)),
-                result.RecognizedText,
-                result.DetectionConfidence));
+            if (!EventLog.Any(entry => entry.CycleId == result.CycleId))
+            {
+                EventLog.Insert(0, new RecognitionLogEntry(
+                    result.CycleId,
+                    result.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff"),
+                    Localization.EventMode(ParseEventMode(result.Metadata)),
+                    result.RecognizedText,
+                    result.DetectionConfidence));
+            }
 
             while (EventLog.Count > 100)
             {
@@ -1382,19 +1478,25 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
             }
         }
 
-        CycleLog.Insert(0, new RecognitionCycleLogEntry(
-            result.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff"),
-            stateText,
-            result.Metadata.TryGetValue("RecognizerLabel", out var recognizerLabel) ? recognizerLabel : string.Empty,
-            result.EventTriggered,
-            result.RecognizedText,
-            result.DetectionConfidence,
-            result.FramesPerSecond));
+        if (!CycleLog.Any(entry => entry.CycleId == result.CycleId))
+        {
+            CycleLog.Insert(0, new RecognitionCycleLogEntry(
+                result.CycleId,
+                result.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff"),
+                stateText,
+                result.Metadata.TryGetValue("RecognizerLabel", out var recognizerLabel) ? recognizerLabel : string.Empty,
+                result.EventTriggered,
+                result.RecognizedText,
+                result.DetectionConfidence,
+                result.FramesPerSecond));
+        }
 
         while (CycleLog.Count > 200)
         {
             CycleLog.RemoveAt(CycleLog.Count - 1);
         }
+
+        SynchronizeLogsFromHistory();
 
         if (awaitingFirstRecognitionResult)
         {
@@ -1416,6 +1518,65 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
         }
 
         PreviewImage = BuildPreviewImage(lastResult);
+    }
+
+    private void SynchronizeFromLog(Guid cycleId)
+    {
+        synchronizingLogAndHistorySelection = true;
+        try
+        {
+            SelectedCycleLogEntry = CycleLog.FirstOrDefault(entry => entry.CycleId == cycleId);
+            SelectedEventLogEntry = EventLog.FirstOrDefault(entry => entry.CycleId == cycleId);
+            var historyIndex = historyMirror.IndexOf(cycleId);
+            if (historyIndex < 0)
+            {
+                correspondingFrameUnavailable = true;
+                selectedHistoryEntry = null;
+                selectedHistoryIndex = -1;
+                RaisePropertyChanged(nameof(SelectedHistoryIndex));
+                RaisePropertyChanged(nameof(SelectedHistoryLabel));
+                RaisePropertyChanged(nameof(CanRunSelectedHistoryFrameTest));
+                PreviewImage = null;
+                StatusMessage = Localization["CorrespondingFrameExpired"];
+                return;
+            }
+
+            correspondingFrameUnavailable = false;
+            SelectedHistoryIndex = historyIndex;
+        }
+        finally
+        {
+            synchronizingLogAndHistorySelection = false;
+        }
+    }
+
+    private void SynchronizeLogsFromHistory()
+    {
+        if (synchronizingLogAndHistorySelection || correspondingFrameUnavailable)
+        {
+            return;
+        }
+
+        var cycleId = selectedHistoryEntry?.CycleId;
+        SetSynchronizedLogSelection(
+            cycleId is { } id ? EventLog.FirstOrDefault(entry => entry.CycleId == id) : null,
+            cycleId is { } id2 ? CycleLog.FirstOrDefault(entry => entry.CycleId == id2) : null);
+    }
+
+    private void SetSynchronizedLogSelection(
+        RecognitionLogEntry? eventEntry,
+        RecognitionCycleLogEntry? cycleEntry)
+    {
+        synchronizingLogAndHistorySelection = true;
+        try
+        {
+            SelectedEventLogEntry = eventEntry;
+            SelectedCycleLogEntry = cycleEntry;
+        }
+        finally
+        {
+            synchronizingLogAndHistorySelection = false;
+        }
     }
 
     private void OnOcrReferencesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -2369,6 +2530,12 @@ public sealed class RecognitionWorkbenchViewModel : ObservableObject
 
     private ImageSource? BuildPreviewImage(RecognitionCycleResult result)
     {
+        if (correspondingFrameUnavailable)
+        {
+            StatusMessage = Localization["CorrespondingFrameExpired"];
+            return null;
+        }
+
         var mode = GetActivePreviewModule()?.Module.LegacyMode ?? PreviewDisplayMode.Processed;
         if (mode is PreviewDisplayMode.Captured or PreviewDisplayMode.OcrReferences or PreviewDisplayMode.OcrTargets
             && GetSelectedSourceFrame() is null)

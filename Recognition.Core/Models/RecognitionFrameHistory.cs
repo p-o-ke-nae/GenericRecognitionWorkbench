@@ -5,13 +5,19 @@ public sealed record RecognitionFrameHistoryEntry(
     RecognitionFrame? SourceFrame,
     RecognitionFrame ProcessedFrame)
 {
+    public Guid CycleId { get; init; } = Guid.NewGuid();
+
     public long Sequence { get; internal init; }
 
     public bool HasSourceFrame => SourceFrame is not null;
 
     public RecognitionFrameHistoryEntry Copy()
     {
-        return new RecognitionFrameHistoryEntry(Timestamp, SourceFrame?.Clone(), ProcessedFrame.Clone());
+        return new RecognitionFrameHistoryEntry(Timestamp, SourceFrame?.Clone(), ProcessedFrame.Clone())
+        {
+            CycleId = CycleId,
+            Sequence = Sequence
+        };
     }
 }
 
@@ -57,6 +63,12 @@ public sealed class RecognitionFrameHistory
 
     public void Add(DateTimeOffset timestamp, RecognitionFrame sourceFrame, RecognitionFrame processedFrame)
     {
+        Add(Guid.NewGuid(), timestamp, sourceFrame, processedFrame);
+    }
+
+    public void Add(Guid cycleId, DateTimeOffset timestamp, RecognitionFrame sourceFrame, RecognitionFrame processedFrame)
+    {
+        if (cycleId == Guid.Empty) throw new ArgumentException("Cycle ID must not be empty.", nameof(cycleId));
         ArgumentNullException.ThrowIfNull(sourceFrame);
         ArgumentNullException.ThrowIfNull(processedFrame);
         lock (gate)
@@ -70,7 +82,11 @@ public sealed class RecognitionFrameHistory
                 head = 0;
             }
             entries[(head + count++) % entries.Length] = new RecognitionFrameHistoryEntry(
-                timestamp, RetainSourceFrames ? sourceFrame : null, processedFrame) { Sequence = ++sequence };
+                timestamp, RetainSourceFrames ? sourceFrame : null, processedFrame)
+            {
+                CycleId = cycleId,
+                Sequence = ++sequence
+            };
             Trim(timestamp);
         }
     }

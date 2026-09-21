@@ -9,11 +9,33 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
 {
     public Task<RecognitionCycleResult> ExecuteOnceAsync(RecognitionProfile profile, CancellationToken cancellationToken = default)
     {
+        return ExecuteOnceCoreAsync(profile, sourceFrame: null, cancellationToken);
+    }
+
+    public Task<RecognitionCycleResult> ExecuteOnceAsync(RecognitionProfile profile, RecognitionFrame sourceFrame, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourceFrame);
+        return ExecuteOnceCoreAsync(profile, sourceFrame, cancellationToken);
+    }
+
+    private Task<RecognitionCycleResult> ExecuteOnceCoreAsync(
+        RecognitionProfile profile,
+        RecognitionFrame? sourceFrame,
+        CancellationToken cancellationToken)
+    {
         return Task.Run(() =>
         {
             using var pipeline = BuildPipeline(profile);
             var state = new RecognitionRuntimeState();
-            return ExecuteCycle(profile, pipeline, state, forceOcrWhenDetected: true, runActionsForTest: true, cancellationToken, isSingleShot: true);
+            return ExecuteCycle(
+                profile,
+                pipeline,
+                state,
+                forceOcrWhenDetected: true,
+                runActionsForTest: true,
+                cancellationToken,
+                isSingleShot: true,
+                sourceFrameOverride: sourceFrame);
         }, cancellationToken);
     }
 
@@ -29,12 +51,16 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
         bool forceOcrWhenDetected,
         bool runActionsForTest,
         CancellationToken cancellationToken,
-        bool isSingleShot = false)
+        bool isSingleShot = false,
+        RecognitionFrame? sourceFrameOverride = null)
     {
         var startedAt = Stopwatch.GetTimestamp();
         var now = DateTimeOffset.UtcNow;
-        var capturedFrame = pipeline.FrameSource.CaptureAsync(cancellationToken).AsTask().GetAwaiter().GetResult();
-        var frame = RecognitionFrameScaler.Scale(capturedFrame, profile.CaptureScale);
+        var cycleId = Guid.NewGuid();
+        var frame = sourceFrameOverride
+            ?? RecognitionFrameScaler.Scale(
+                pipeline.FrameSource.CaptureAsync(cancellationToken).AsTask().GetAwaiter().GetResult(),
+                profile.CaptureScale);
         var processed = frame;
         var sourceOffsetX = 0;
         var sourceOffsetY = 0;
@@ -51,7 +77,7 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
 
         BufferFrame(state, now, frame, processed, Math.Abs(profile.EventActionFrameOffset));
         state.FrameHistory ??= new RecognitionFrameHistory(TimeSpan.FromSeconds(Math.Max(0, profile.FrameHistoryRetentionSeconds)), profile.RetainSourceFramesInHistory);
-        state.FrameHistory.Add(now, frame, processed);
+        state.FrameHistory.Add(cycleId, now, frame, processed);
         var match = pipeline.RecognitionMethod.Evaluate(processed);
         RoiArea? sourceMatchedRegion = match.Region is { } matchedRegion
             ? new RoiArea(matchedRegion.X + sourceOffsetX, matchedRegion.Y + sourceOffsetY, matchedRegion.Width, matchedRegion.Height)
@@ -137,7 +163,10 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
         };
         var result = new RecognitionCycleResult
         {
+            CycleId = cycleId,
             Timestamp = now,
+            CycleSourceFrame = frame,
+            CyclePreviewFrame = processed,
             SourceFrame = eventSourceFrame ?? frame,
             PreviewFrame = eventPreviewFrame ?? processed,
             FrameHistory = state.FrameHistory,
@@ -161,7 +190,7 @@ public sealed class RecognitionRunner(IRecognitionPluginCatalog pluginCatalog) :
         var elapsed = Stopwatch.GetElapsedTime(startedAt);
         metadata["CycleMilliseconds"] = elapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture);
         metadata["TargetPeriodExceeded"] = (profile.TargetFps > 0 && elapsed.TotalSeconds > 1d / profile.TargetFps) ? "true" : "false";
-        if (pipeline.FrameSource is IFrameSourceDiagnostics diagnostics)
+        if (sourceFrameOverride is null && pipeline.FrameSource is IFrameSourceDiagnostics diagnostics)
         {
             metadata["FrameSequence"] = diagnostics.FrameSequence.ToString(CultureInfo.InvariantCulture);
             metadata["DroppedFrames"] = diagnostics.DroppedFrames.ToString(CultureInfo.InvariantCulture);
