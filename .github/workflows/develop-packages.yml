@@ -1,0 +1,114 @@
+name: Develop packages
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: develop-packages
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Find latest stable tag
+        id: latest
+        shell: pwsh
+        run: |
+          $tag = @(git tag --list 'v[0-9]*' --sort=-version:refname |
+            Where-Object { $_ -cmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$' } |
+            Select-Object -First 1)
+          if ($tag.Count -eq 0) {
+            "version=0.0.0" >> $env:GITHUB_OUTPUT
+          }
+          else {
+            "version=$($tag[0].Substring(1))" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Collect unreleased Issue labels
+        id: metadata
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          BASE_VERSION: ${{ steps.latest.outputs.version }}
+        with:
+          script: |
+            const collect = require("./.github/scripts/release-metadata.js");
+            await collect({
+              github,
+              context,
+              core,
+              baseVersion: process.env.BASE_VERSION,
+            });
+
+      - name: Resolve develop version
+        id: version
+        shell: pwsh
+        run: |
+          $bump = '${{ steps.metadata.outputs.bump }}'
+          if ($bump -eq 'None') { $bump = 'Patch' }
+          $version = .\build\Resolve-Version.ps1 `
+            -BaseVersion '${{ steps.metadata.outputs.base-version }}' `
+            -Bump $bump `
+            -Channel Dev `
+            -RunNumber '${{ github.run_number }}' `
+            -CommitSha '${{ github.sha }}'
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore, build, and test
+        shell: pwsh
+        run: |
+          dotnet restore .\GenericRecognitionWorkbench.slnx
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build .\GenericRecognitionWorkbench.slnx -c Release --no-restore `
+            -p:Version='${{ steps.version.outputs.value }}' `
+            -p:RepositoryCommit='${{ github.sha }}'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test .\GenericRecognitionWorkbench.slnx -c Release --no-build --no-restore `
+            -p:Version='${{ steps.version.outputs.value }}'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Pack and validate
+        shell: pwsh
+        run: |
+          @(
+            '.\Recognition.Core\Recognition.Core.csproj',
+            '.\Recognition.Infrastructure\Recognition.Infrastructure.csproj',
+            '.\Recognition.Wpf\Recognition.Wpf.csproj'
+          ) | ForEach-Object {
+            dotnet pack $_ -c Release --no-build --no-restore `
+              -o .\artifacts\packages `
+              -p:Version='${{ steps.version.outputs.value }}' `
+              -p:RepositoryCommit='${{ github.sha }}'
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          .\build\Test-Packages.ps1 `
+            -PackageDirectory .\artifacts\packages `
+            -ExpectedVersion '${{ steps.version.outputs.value }}'
+
+      - name: Upload develop packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: packages-${{ steps.version.outputs.value }}
+          path: artifacts/packages/*
+          if-no-files-found: error
+          retention-days: 14

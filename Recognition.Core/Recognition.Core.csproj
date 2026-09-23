@@ -6,12 +6,13 @@
     <Nullable>enable</Nullable>
     <IsPackable>true</IsPackable>
     <PackageId>GenericRecognition.Workbench.Abstractions</PackageId>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Plugin interfaces and shared models for the generic recognition workbench.</Description>
     <PackageTags>ocr;recognition;plugin;wpf</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\PACKAGE_README.md" Pack="true" PackagePath="\" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

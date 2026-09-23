@@ -1,0 +1,23 @@
+name: Release
+description: Track one stable release from develop to main.
+title: "[Release] "
+labels:
+  - "type:release"
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: Intended scope
+      description: List the implementation Issues expected in this release.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Release checks
+      placeholder: |
+        - [ ] All intended changes are merged to develop
+        - [ ] Develop package artifact was tested
+        - [ ] Breaking changes and migration notes are documented
+    validations:
+      required: true

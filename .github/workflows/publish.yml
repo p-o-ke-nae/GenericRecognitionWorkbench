@@ -1,0 +1,173 @@
+name: Publish stable release
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+concurrency:
+  group: stable-release
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  publish:
+    if: >-
+      github.event.pull_request.merged == true &&
+      (startsWith(github.event.pull_request.head.ref, 'release/v') ||
+       startsWith(github.event.pull_request.head.ref, 'hotfix/'))
+    runs-on: windows-latest
+    environment: release
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Check out released commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve stable version
+        id: version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if ($env:HEAD_REF -cmatch '^release/v((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*))$') {
+            $version = $Matches[1]
+          }
+          elseif ($env:HEAD_REF -like 'hotfix/*') {
+            $issueMatch = [regex]::Matches($env:PR_BODY, 'Issue:\s*#(\d+)', 'IgnoreCase')
+            $issues = @($issueMatch | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+            if ($issues.Count -ne 1) { throw 'Hotfix PR must reference exactly one Issue.' }
+            $labels = @(gh issue view $issues[0] --json labels --jq '.labels[].name')
+            $semver = @($labels | Where-Object { $_ -in @('semver:major', 'semver:minor', 'semver:patch') })
+            if ($semver.Count -ne 1) { throw 'Hotfix Issue must have exactly one semver label.' }
+            $tag = @(git tag --list 'v[0-9]*' --sort=-version:refname |
+              Where-Object { $_ -cmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$' } |
+              Select-Object -First 1)
+            if ($tag.Count -eq 0) { throw 'A baseline stable tag is required.' }
+            $bump = (Get-Culture).TextInfo.ToTitleCase($semver[0].Substring(7))
+            $version = .\build\Resolve-Version.ps1 -BaseVersion $tag[0].Substring(1) -Bump $bump
+          }
+          else {
+            throw "Unsupported release branch '$env:HEAD_REF'."
+          }
+          if (git tag --list "v$version") { throw "Tag v$version already exists." }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore, build, test, pack, and validate
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          dotnet restore .\GenericRecognitionWorkbench.slnx
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build .\GenericRecognitionWorkbench.slnx -c Release --no-restore `
+            -p:Version=$version `
+            -p:RepositoryCommit='${{ github.event.pull_request.merge_commit_sha }}'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet test .\GenericRecognitionWorkbench.slnx -c Release --no-build --no-restore -p:Version=$version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @(
+            '.\Recognition.Core\Recognition.Core.csproj',
+            '.\Recognition.Infrastructure\Recognition.Infrastructure.csproj',
+            '.\Recognition.Wpf\Recognition.Wpf.csproj'
+          ) | ForEach-Object {
+            dotnet pack $_ -c Release --no-build --no-restore `
+              -o .\artifacts\packages `
+              -p:Version=$version `
+              -p:RepositoryCommit='${{ github.event.pull_request.merge_commit_sha }}'
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          .\build\Test-Packages.ps1 -PackageDirectory .\artifacts\packages -ExpectedVersion $version
+          Compress-Archive `
+            -Path .\.github\skills\generic-recognition-workbench-consumer `
+            -DestinationPath ".\artifacts\generic-recognition-workbench-consumer-skill-$version.zip"
+
+      - name: Create immutable release tag
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -a "v$version" '${{ github.event.pull_request.merge_commit_sha }}' -m "Release v$version"
+          git push origin "v$version"
+
+      - name: Log in to nuget.org with OIDC
+        id: nuget
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish to nuget.org
+        shell: pwsh
+        run: |
+          Get-ChildItem .\artifacts\packages\*.nupkg | ForEach-Object {
+            dotnet nuget push $_.FullName `
+              --api-key '${{ steps.nuget.outputs.NUGET_API_KEY }}' `
+              --source https://api.nuget.org/v3/index.json
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          $assets = @(
+            Get-ChildItem .\artifacts\packages\* | ForEach-Object FullName
+            Resolve-Path ".\artifacts\generic-recognition-workbench-consumer-skill-$version.zip"
+          )
+          gh release create "v$version" @assets `
+            --verify-tag `
+            --generate-notes `
+            --title "v$version"
+
+      - name: Record release and open back-merge
+        id: backmerge
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          $releaseIssue = [regex]::Match($env:PR_BODY, 'Release-Issue:\s*#(\d+)', 'IgnoreCase').Groups[1].Value
+          if ($releaseIssue) {
+            gh issue comment $releaseIssue --body "Published v$version to nuget.org and created the GitHub Release."
+            gh issue close $releaseIssue --reason completed
+          }
+          git fetch origin main develop
+          $branch = "backmerge/v$version"
+          git switch -c $branch '${{ github.event.pull_request.merge_commit_sha }}'
+          git push origin $branch
+          $url = gh pr create `
+            --base develop `
+            --head $branch `
+            --title "Back-merge v$version into develop" `
+            --body "Synchronize the published v$version merge commit and release history back into develop."
+          $number = [regex]::Match($url, '/pull/(\d+)$').Groups[1].Value
+          if (-not $number) { throw "Could not determine pull request number from '$url'." }
+          "number=$number" >> $env:GITHUB_OUTPUT
+
+      - name: Dispatch CI for back-merge pull request
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref 'backmerge/v${{ steps.version.outputs.value }}' -f pr_number='${{ steps.backmerge.outputs.number }}'
