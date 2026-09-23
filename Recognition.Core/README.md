@@ -1,27 +1,25 @@
 # GenericRecognition.Workbench.Abstractions
 
-Contracts and shared models for Generic Recognition Workbench extensions.
-This package has no dependency on WPF or the built-in recognition runtime.
+Generic Recognition Workbench の拡張機能向け契約と共有モデルを提供します。このパッケージは WPF および組み込み認識ランタイムに依存しません。
 
-## Create an extension
+## 拡張機能の作成
 
-Implement one or more factory interfaces:
+次のファクトリインターフェースを 1 つ以上実装します。
 
 - `IFrameSourceFactory`
 - `IImageProcessorFactory`
 - `IRecognitionMethodFactory`
 - `IOcrEngineFactory`
 
-Each factory exposes a stable, globally unique `ComponentDescriptor.Id`, describes
-its parameters, and creates the runtime component from the supplied parameter map.
+各ファクトリは、安定したグローバルに一意の `ComponentDescriptor.Id` とパラメータ定義を公開し、渡されたパラメータマップからランタイムコンポーネントを作成します。
 
 ```csharp
 public sealed class CustomRecognitionFactory : IRecognitionMethodFactory
 {
     public ComponentDescriptor Descriptor { get; } = new(
         "example.recognition.custom",
-        "Custom Recognition",
-        "Recognizes an application-specific target.",
+        "カスタム認識",
+        "アプリケーション固有の対象を認識します。",
         []);
 
     public IRecognitionMethod Create(IReadOnlyDictionary<string, string> parameters)
@@ -29,9 +27,6 @@ public sealed class CustomRecognitionFactory : IRecognitionMethodFactory
 }
 ```
 
-Reference the same major version of `Abstractions` used by the host. Place the
-extension assembly in the host's plugin directory; exported factory types must be
-non-abstract and have a public parameterless constructor. A host may also inject
-recognition factories directly when constructing `RecognitionPluginCatalog`.
+ホストが使用する `Abstractions` と同じメジャーバージョンを参照してください。拡張機能のアセンブリをホストのプラグインディレクトリへ配置します。公開するファクトリ型は抽象型ではない型とし、public な引数なしコンストラクターを持たせてください。ホストは `RecognitionPluginCatalog` の構築時に認識ファクトリを直接注入することもできます。
 
-Project documentation: https://github.com/p-o-ke-nae/GenericRecognitionWorkbench
+プロジェクト文書: https://github.com/p-o-ke-nae/GenericRecognitionWorkbench

@@ -1,5 +1,5 @@
-name: Design / ADR
-description: Record an architectural decision or design before implementation.
+name: 設計 / ADR
+description: 実装前にアーキテクチャ上の決定または設計を記録します。
 title: "[Design] "
 labels:
   - "type:design"
@@ -7,31 +7,31 @@ body:
   - type: textarea
     id: context
     attributes:
-      label: Context and problem
+      label: 背景と課題
     validations:
       required: true
   - type: textarea
     id: constraints
     attributes:
-      label: Constraints and compatibility requirements
+      label: 制約と互換性要件
     validations:
       required: true
   - type: textarea
     id: options
     attributes:
-      label: Options considered
+      label: 検討した選択肢
     validations:
       required: true
   - type: textarea
     id: decision
     attributes:
-      label: Decision
-      description: Update this section when the design is accepted.
+      label: 決定
+      description: 設計が承認された時点で、この欄を更新してください。
     validations:
       required: true
   - type: textarea
     id: consequences
     attributes:
-      label: Consequences and follow-up Issues
+      label: 影響と後続 Issue
     validations:
       required: true

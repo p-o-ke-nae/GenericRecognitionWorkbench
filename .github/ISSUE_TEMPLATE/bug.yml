@@ -1,29 +1,29 @@
-name: Bug report
-description: Report a reproducible defect.
+name: バグ報告
+description: 再現可能な不具合を報告します。
 title: "[Bug] "
 body:
   - type: textarea
     id: observed
     attributes:
-      label: Observed behavior
+      label: 実際の動作
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
+      label: 期待する動作
     validations:
       required: true
   - type: textarea
     id: reproduce
     attributes:
-      label: Reproduction steps and environment
+      label: 再現手順と環境
     validations:
       required: true
   - type: textarea
     id: acceptance
     attributes:
-      label: Acceptance criteria
-      placeholder: Include a regression test where practical.
+      label: 受け入れ条件
+      placeholder: 可能な場合は回帰テストを含めてください。
     validations:
       required: true

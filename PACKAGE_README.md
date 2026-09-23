@@ -1,12 +1,11 @@
-# Generic Recognition Workbench packages
+# Generic Recognition Workbench パッケージ
 
-The repository produces three independently consumable packages:
+このリポジトリは、個別に利用できる次の 3 パッケージを生成します。
 
 - `GenericRecognition.Workbench.Abstractions`
 - `GenericRecognition.Workbench.Infrastructure`
 - `GenericRecognition.Workbench.Wpf`
 
-Each project contains the self-contained README embedded in its package.
-Repository usage and extension guidance is available at:
+各プロジェクトには、パッケージへ埋め込む自己完結した README があります。リポジトリの利用方法と拡張方法は、次を参照してください。
 
 https://github.com/p-o-ke-nae/GenericRecognitionWorkbench

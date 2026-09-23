@@ -1,5 +1,5 @@
-name: Release
-description: Track one stable release from develop to main.
+name: リリース
+description: develop から main への安定版リリースを追跡します。
 title: "[Release] "
 labels:
   - "type:release"
@@ -7,17 +7,17 @@ body:
   - type: textarea
     id: scope
     attributes:
-      label: Intended scope
-      description: List the implementation Issues expected in this release.
+      label: 対象範囲
+      description: このリリースに含める実装 Issue を列挙してください。
     validations:
       required: true
   - type: textarea
     id: checks
     attributes:
-      label: Release checks
+      label: リリース確認
       placeholder: |
-        - [ ] All intended changes are merged to develop
-        - [ ] Develop package artifact was tested
-        - [ ] Breaking changes and migration notes are documented
+        - [ ] 対象の変更がすべて develop へマージされている
+        - [ ] develop のパッケージアーティファクトをテストした
+        - [ ] 破壊的変更と移行手順を文書化した
     validations:
       required: true
