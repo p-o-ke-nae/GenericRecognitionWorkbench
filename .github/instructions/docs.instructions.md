@@ -2,7 +2,6 @@
 applyTo: "**/README.md,CONTRIBUTING.md,doc/**/*.md,.github/skills/**/*.md"
 ---
 
-Keep installation and examples copyable and consistent with current public APIs.
-Package READMEs must be self-contained because repository-relative links are not
-available in an installed NuGet package. Keep design rationale in GitHub Issues
-and link to it rather than duplicating it in repository documents.
+文書の本文と見出しは日本語で記述してください。コマンド、API 名、型名、識別子、パッケージ名などは正確性のため原文表記を維持します。
+
+インストール手順と例は、そのままコピーして使用でき、現在の公開 API と整合する内容にします。パッケージ README は、インストール済み NuGet パッケージからリポジトリ相対リンクを利用できないため、自己完結した内容にしてください。設計理由は GitHub Issue に記録してリンクし、リポジトリ文書へ重複して記載しません。

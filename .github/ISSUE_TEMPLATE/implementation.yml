@@ -1,39 +1,39 @@
-name: Feature or maintenance
-description: Track one implementation change and its release impact.
+name: 機能追加または保守
+description: 1 つの実装変更と、そのリリースへの影響を追跡します。
 title: "[Change] "
 body:
   - type: markdown
     attributes:
-      value: Apply exactly one semver label after creating this Issue.
+      value: この Issue の作成後に、semver ラベルを必ず 1 つだけ付けてください。
   - type: textarea
     id: design
     attributes:
-      label: Related design Issue
-      description: Link the source design Issue, or explain why one is unnecessary.
+      label: 関連する設計 Issue
+      description: 元となる設計 Issue へのリンク、または設計 Issue が不要な理由を記載してください。
     validations:
       required: true
   - type: textarea
     id: outcome
     attributes:
-      label: Required outcome
+      label: 必要な成果
     validations:
       required: true
   - type: textarea
     id: acceptance
     attributes:
-      label: Acceptance criteria
+      label: 受け入れ条件
       placeholder: |
-        - [ ] Observable requirement
-        - [ ] Tests or validation
+        - [ ] 確認可能な要件
+        - [ ] テストまたは検証
     validations:
       required: true
   - type: dropdown
     id: compatibility
     attributes:
-      label: Compatibility impact
+      label: 互換性への影響
       options:
-        - No public compatibility impact
-        - Backward-compatible public API addition
-        - Breaking public API or persisted-data change
+        - 公開互換性への影響なし
+        - 後方互換性のある公開 API の追加
+        - 公開 API または永続化データの破壊的変更
     validations:
       required: true

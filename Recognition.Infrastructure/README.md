@@ -1,7 +1,6 @@
 # GenericRecognition.Workbench.Infrastructure
 
-Built-in frame sources, image processors, OCR engines, recognition methods,
-profile persistence, plugin discovery, and recognition runtime.
+組み込みのフレームソース、画像処理、OCR エンジン、認識手段、プロファイル永続化、プラグイン検出、認識ランタイムを提供します。
 
 ```csharp
 var pluginDirectory = Path.Combine(AppContext.BaseDirectory, "Plugins");
@@ -11,8 +10,7 @@ var profileStore = new JsonRecognitionProfileStore();
 var calibration = new TemplateMatchingProfileCalibrationService();
 ```
 
-To add an application-specific recognition method without copying the built-in
-runtime:
+組み込みランタイムをコピーせず、アプリケーション固有の認識手段を追加できます。
 
 ```csharp
 var catalog = new RecognitionPluginCatalog(
@@ -20,8 +18,6 @@ var catalog = new RecognitionPluginCatalog(
     [new CustomRecognitionFactory()]);
 ```
 
-This package targets Windows x64 and brings native OCR/OpenCV dependencies.
-Extension contracts are provided by
-`GenericRecognition.Workbench.Abstractions`.
+このパッケージは Windows x64 を対象とし、OCR/OpenCV のネイティブ依存関係を含みます。拡張機能の契約は `GenericRecognition.Workbench.Abstractions` が提供します。
 
-Project documentation: https://github.com/p-o-ke-nae/GenericRecognitionWorkbench
+プロジェクト文書: https://github.com/p-o-ke-nae/GenericRecognitionWorkbench

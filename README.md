@@ -1,19 +1,16 @@
 # Generic Recognition Workbench
 
-Generic Recognition Workbench is a reusable .NET 10 Windows recognition runtime
-and WPF workbench. Applications consume it through NuGet instead of copying its
-source.
+Generic Recognition Workbench は、再利用可能な .NET 10 Windows 向け認識ランタイムおよび WPF ワークベンチです。アプリケーションはソースコードをコピーせず、NuGet パッケージとして利用します。
 
-| Package | Purpose |
+| パッケージ | 用途 |
 |---|---|
-| `GenericRecognition.Workbench.Abstractions` | External component contracts and shared models |
-| `GenericRecognition.Workbench.Infrastructure` | Built-in capture, preprocessing, OCR, recognition, persistence, and plugin loading |
-| `GenericRecognition.Workbench.Wpf` | Reusable WPF workbench control and view model |
+| `GenericRecognition.Workbench.Abstractions` | 外部コンポーネント用の契約と共有モデル |
+| `GenericRecognition.Workbench.Infrastructure` | 組み込みのキャプチャ、前処理、OCR、認識、永続化、プラグイン読み込み |
+| `GenericRecognition.Workbench.Wpf` | 再利用可能な WPF ワークベンチコントロールと ViewModel |
 
-## Install
+## インストール
 
-Keep all three packages on the same version. Extension-only projects normally
-need only `Abstractions`.
+3 パッケージのバージョンは揃えてください。拡張機能だけを実装するプロジェクトでは、通常 `Abstractions` のみが必要です。
 
 ```powershell
 dotnet add package GenericRecognition.Workbench.Abstractions --version <VERSION>
@@ -21,13 +18,11 @@ dotnet add package GenericRecognition.Workbench.Infrastructure --version <VERSIO
 dotnet add package GenericRecognition.Workbench.Wpf --version <VERSION>
 ```
 
-Formal packages are published to
-[nuget.org](https://www.nuget.org/profiles/p-o-ke-nae). Temporary builds from
-`develop` are available only as short-lived GitHub Actions artifacts.
+正式版パッケージは [nuget.org](https://www.nuget.org/packages?q=GenericRecognition.Workbench) で公開します。`develop` の一時ビルドは、保存期間の短い GitHub Actions アーティファクトとしてのみ提供します。
 
-## Host the WPF workbench
+## WPF ワークベンチのホスト
 
-Add the control to a Window or UserControl:
+Window または UserControl にコントロールを追加します。
 
 ```xml
 <Window
@@ -36,7 +31,7 @@ Add the control to a Window or UserControl:
 </Window>
 ```
 
-Create the built-in services and initialize it:
+組み込みサービスを作成して初期化します。
 
 ```csharp
 var pluginDirectory = Path.Combine(AppContext.BaseDirectory, "Plugins");
@@ -48,35 +43,30 @@ var calibration = new TemplateMatchingProfileCalibrationService();
 Workbench.Initialize(catalog, runner, profileStore, calibration);
 Workbench.RecognitionEventRaised += (_, result) =>
 {
-    // Send the shared result to application-specific behavior.
+    // 共有された認識結果をアプリケーション固有の処理へ渡します。
 };
 ```
 
-Keep application-specific buttons, automation, and result handling in the host.
-Changes inside `RecognitionWorkbenchControl` then flow to the host when the
-package is upgraded.
+アプリケーション固有のボタン、自動処理、結果処理はホスト側に置いてください。これにより、`RecognitionWorkbenchControl` 内の変更をパッケージ更新によってホストへ反映できます。
 
-## Create an external component
+## 外部コンポーネントの作成
 
-Create a class library that references
-`GenericRecognition.Workbench.Abstractions`, then implement one or more factory
-contracts:
+`GenericRecognition.Workbench.Abstractions` を参照するクラスライブラリを作成し、次のファクトリ契約を 1 つ以上実装します。
 
 - `IFrameSourceFactory`
 - `IImageProcessorFactory`
 - `IRecognitionMethodFactory`
 - `IOcrEngineFactory`
 
-Factories expose a `ComponentDescriptor` and create a runtime component from the
-saved parameter map:
+ファクトリは `ComponentDescriptor` を公開し、保存済みのパラメータマップからランタイムコンポーネントを作成します。
 
 ```csharp
 public sealed class CustomRecognitionFactory : IRecognitionMethodFactory
 {
     public ComponentDescriptor Descriptor { get; } = new(
         "example.recognition.custom",
-        "Custom Recognition",
-        "Recognizes an application-specific target.",
+        "カスタム認識",
+        "アプリケーション固有の対象を認識します。",
         []);
 
     public IRecognitionMethod Create(IReadOnlyDictionary<string, string> parameters)
@@ -84,14 +74,9 @@ public sealed class CustomRecognitionFactory : IRecognitionMethodFactory
 }
 ```
 
-Use a stable, globally unique descriptor ID and keep parameter names and
-semantics backward compatible. For discovery from a plugin directory, exported
-factory types must be concrete and have a public parameterless constructor.
-Copy the component DLL and its private dependencies into the host's plugin
-directory. The host can reload the catalog with
-`RecognitionPluginCatalog.ReloadPlugins()`.
+安定したグローバルに一意の descriptor ID を使用し、パラメータ名と意味の後方互換性を維持してください。プラグインディレクトリから検出する場合、公開するファクトリ型は具象型とし、public な引数なしコンストラクターを持たせます。コンポーネント DLL とそのプライベート依存関係をホストのプラグインディレクトリへコピーします。ホストは `RecognitionPluginCatalog.ReloadPlugins()` でカタログを再読み込みできます。
 
-A host can instead inject an application-specific recognition factory directly:
+ホストからアプリケーション固有の認識ファクトリを直接注入することもできます。
 
 ```csharp
 var catalog = new RecognitionPluginCatalog(
@@ -99,10 +84,9 @@ var catalog = new RecognitionPluginCatalog(
     [new CustomRecognitionFactory()]);
 ```
 
-See [the complete publishing and hosting guide](doc/publish-and-host-guide.md)
-and the package-specific README shown on nuget.org.
+詳細は[公開・ホスト手順](doc/publish-and-host-guide.md)と、nuget.org に表示される各パッケージの README を参照してください。
 
-## Build
+## ビルド
 
 ```powershell
 dotnet restore .\GenericRecognitionWorkbench.slnx
@@ -110,11 +94,11 @@ dotnet build .\GenericRecognitionWorkbench.slnx -c Release --no-restore
 dotnet test .\GenericRecognitionWorkbench.slnx -c Release --no-build --no-restore
 ```
 
-Local packs use `0.0.0-local` and are never formally published.
+ローカルパッケージのバージョンは `0.0.0-local` とし、正式公開には使用しません。
 
-## Development and releases
+## 開発とリリース
 
-This repository uses Git Flow:
+このリポジトリでは Git Flow を使用します。
 
 ```text
 feature/* -> develop -> release/vX.Y.Z -> main
@@ -122,25 +106,14 @@ feature/* -> develop -> release/vX.Y.Z -> main
 hotfix/*  ---------------------------> main -> develop
 ```
 
-Every implementation starts from an Issue and has exactly one
-`semver:major`, `semver:minor`, or `semver:patch` label. Release automation
-aggregates unreleased Issue labels and selects the highest required increment.
-Only a merged release or hotfix PR to `main` creates an immutable tag and
-publishes to nuget.org.
+すべての実装は Issue から開始し、`semver:major`、`semver:minor`、`semver:patch` のいずれか 1 つのラベルを付けます。リリース自動化は未リリースの Issue ラベルを集計し、必要な変更レベルのうち最も大きいものを選択します。`main` へマージされた release PR または hotfix PR だけが、不変のタグを作成して nuget.org へ公開します。
 
-Designs and architectural decisions remain in GitHub Issues labeled
-`type:design`. See [CONTRIBUTING.md](CONTRIBUTING.md) for branch, Issue, version,
-CI, publication, and failure-recovery rules.
+設計およびアーキテクチャ上の決定は、`type:design` ラベルを付けた GitHub Issue に記録します。ブランチ、Issue、バージョン、CI、公開、障害復旧の規則は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
-## AI agent guidance
+## AI エージェント向け案内
 
-Repository-wide rules are in `.github/copilot-instructions.md` and `AGENTS.md`.
-Path-specific instructions cover C#, Actions, and documentation. The consumer
-integration skill is in
-`.github/skills/generic-recognition-workbench-consumer/SKILL.md` and is also
-attached as a versioned ZIP to each GitHub Release. Copy that skill directory to
-a consumer repository's `.github/skills/` directory to make it available there.
+リポジトリ全体の規則は `.github/copilot-instructions.md` と `AGENTS.md` にあります。C#、Actions、文書にはパス別 instruction があります。利用者向け統合スキルは `.github/skills/generic-recognition-workbench-consumer/SKILL.md` にあり、各 GitHub Release にバージョン付き ZIP としても添付します。利用先で使用するには、そのスキルディレクトリを利用先リポジトリの `.github/skills/` へコピーしてください。
 
-## License
+## ライセンス
 
 [MIT](LICENSE)
