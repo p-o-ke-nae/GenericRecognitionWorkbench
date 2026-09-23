@@ -1,0 +1,7 @@
+<Project>
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <PackageReference Include="Microsoft.SourceLink.GitHub"
+                      Version="10.0.401"
+                      PrivateAssets="All" />
+  </ItemGroup>
+</Project>

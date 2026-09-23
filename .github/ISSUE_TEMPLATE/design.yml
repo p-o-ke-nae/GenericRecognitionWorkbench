@@ -1,0 +1,37 @@
+name: Design / ADR
+description: Record an architectural decision or design before implementation.
+title: "[Design] "
+labels:
+  - "type:design"
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and problem
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and compatibility requirements
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision
+      description: Update this section when the design is accepted.
+    validations:
+      required: true
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences and follow-up Issues
+    validations:
+      required: true

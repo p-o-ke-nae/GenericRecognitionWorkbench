@@ -1,9 +1,12 @@
-# Generic Recognition Workbench Packages
+# Generic Recognition Workbench packages
 
-These local packages provide the shared abstractions, infrastructure, and WPF UI used by AutoCountTool and related recognition hosts.
+The repository produces three independently consumable packages:
 
 - `GenericRecognition.Workbench.Abstractions`
 - `GenericRecognition.Workbench.Infrastructure`
 - `GenericRecognition.Workbench.Wpf`
 
-For local publishing and host integration steps, see `doc/publish-and-host-guide.md`.
+Each project contains the self-contained README embedded in its package.
+Repository usage and extension guidance is available at:
+
+https://github.com/p-o-ke-nae/GenericRecognitionWorkbench

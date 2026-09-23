@@ -1,0 +1,44 @@
+name: Close implemented Issue
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - develop
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  close:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'feature/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record implementation and close Issue
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+            const matches = [...body.matchAll(/Issue:\s*#(\d+)/gi)];
+            const numbers = [...new Set(matches.map((match) => Number(match[1])))];
+            if (numbers.length !== 1) {
+              core.setFailed("Merged feature PR must contain exactly one Issue reference.");
+              return;
+            }
+            const issue_number = numbers[0];
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              body: `Implemented on \`develop\` by #${context.payload.pull_request.number} at ${context.payload.pull_request.merge_commit_sha}. It will be included in a future stable release.`,
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              state: "closed",
+              state_reason: "completed",
+            });
