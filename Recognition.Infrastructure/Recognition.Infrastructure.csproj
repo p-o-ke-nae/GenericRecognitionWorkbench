@@ -22,12 +22,13 @@
     <PlatformTarget>x64</PlatformTarget>
     <IsPackable>true</IsPackable>
     <PackageId>GenericRecognition.Workbench.Infrastructure</PackageId>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Infrastructure implementations for the generic recognition workbench.</Description>
     <PackageTags>ocr;recognition;opencv;tesseract;paddleocr</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\PACKAGE_README.md" Pack="true" PackagePath="\" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <None Include="buildTransitive\GenericRecognition.Workbench.Infrastructure.targets"
           Pack="true"
           PackagePath="buildTransitive\GenericRecognition.Workbench.Infrastructure.targets"

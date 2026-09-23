@@ -1,0 +1,213 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to validate after automation creates it
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Issue and branch policy
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          DISPATCH_PR_NUMBER: ${{ inputs.pr_number }}
+        with:
+          script: |
+            const number = context.payload.pull_request?.number || Number(process.env.DISPATCH_PR_NUMBER);
+            if (!number) {
+              core.setFailed("A pull request number is required.");
+              return;
+            }
+
+            const { data: pull } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: number,
+            });
+            const body = pull.body || "";
+            const semverNames = new Set(["semver:major", "semver:minor", "semver:patch"]);
+
+            async function getIssue(pattern, referenceName) {
+              const matches = [...body.matchAll(pattern)];
+              const numbers = [...new Set(matches.map((match) => Number(match[1])))];
+              if (numbers.length !== 1) {
+                core.setFailed(`PR #${number} must contain exactly one ${referenceName} reference.`);
+                return null;
+              }
+              const response = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: numbers[0],
+              });
+              if (response.data.pull_request) {
+                core.setFailed(`#${numbers[0]} is a pull request, not an Issue.`);
+                return null;
+              }
+              return response.data;
+            }
+
+            if (pull.base.ref === "develop") {
+              const allowed = pull.head.ref.startsWith("feature/") || pull.head.ref.startsWith("backmerge/");
+              if (!allowed) {
+                core.setFailed("PRs to develop must originate from feature/* or backmerge/*.");
+                return;
+              }
+              if (pull.head.ref.startsWith("backmerge/")) {
+                return;
+              }
+              const issue = await getIssue(/Issue:\s*#(\d+)/gi, "Issue: #<number>");
+              if (!issue) return;
+              const labels = issue.labels
+                .map((label) => typeof label === "string" ? label : label.name)
+                .filter((label) => semverNames.has(label));
+              if (labels.length !== 1) {
+                core.setFailed(`Issue #${issue.number} must have exactly one semver label.`);
+              }
+              if (issue.state !== "open") {
+                core.setFailed(`Issue #${issue.number} must be open until its feature PR is merged.`);
+              }
+              return;
+            }
+
+            if (pull.base.ref !== "main") {
+              core.setFailed(`Unsupported base branch '${pull.base.ref}'.`);
+              return;
+            }
+
+            if (pull.head.ref.startsWith("release/v")) {
+              const issue = await getIssue(/Release-Issue:\s*#(\d+)/gi, "Release-Issue: #<number>");
+              if (!issue) return;
+              const labels = issue.labels.map((label) => typeof label === "string" ? label : label.name);
+              if (!labels.includes("type:release")) {
+                core.setFailed(`Issue #${issue.number} must have the type:release label.`);
+              }
+              if (!/^release\/v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(pull.head.ref)) {
+                core.setFailed(`Release branch '${pull.head.ref}' is not a strict release/vMAJOR.MINOR.PATCH name.`);
+              }
+              return;
+            }
+
+            if (pull.head.ref.startsWith("hotfix/")) {
+              const issue = await getIssue(/Issue:\s*#(\d+)/gi, "Issue: #<number>");
+              if (!issue) return;
+              const labels = issue.labels
+                .map((label) => typeof label === "string" ? label : label.name)
+                .filter((label) => semverNames.has(label));
+              if (labels.length !== 1) {
+                core.setFailed(`Hotfix Issue #${issue.number} must have exactly one semver label.`);
+              }
+              return;
+            }
+
+            core.setFailed("PRs to main must originate from release/v* or hotfix/*.");
+
+  build-test-pack:
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve CI version
+        id: version
+        shell: pwsh
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $sourceRef = $env:HEAD_REF
+          if (-not $sourceRef) { $sourceRef = $env:REF_NAME }
+          if ($sourceRef -cmatch '^release/v((0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*))$') {
+            $version = .\build\Resolve-Version.ps1 `
+              -BaseVersion $Matches[1] `
+              -Channel Rc `
+              -RunNumber '${{ github.run_number }}' `
+              -CommitSha '${{ github.sha }}'
+          }
+          else {
+            $version = .\build\Resolve-Version.ps1 `
+              -BaseVersion 0.0.0 `
+              -Channel Dev `
+              -RunNumber '${{ github.run_number }}' `
+              -CommitSha '${{ github.sha }}'
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Validate version rules
+        shell: pwsh
+        run: |
+          .\build\Test-Versioning.ps1
+          node .\.github\scripts\release-metadata.test.js
+
+      - name: Restore
+        run: dotnet restore .\GenericRecognitionWorkbench.slnx
+
+      - name: Build
+        run: >-
+          dotnet build .\GenericRecognitionWorkbench.slnx
+          -c Release
+          --no-restore
+          -p:Version=${{ steps.version.outputs.value }}
+          -p:RepositoryCommit=${{ github.sha }}
+
+      - name: Test
+        run: >-
+          dotnet test .\GenericRecognitionWorkbench.slnx
+          -c Release
+          --no-build
+          --no-restore
+          -p:Version=${{ steps.version.outputs.value }}
+
+      - name: Pack
+        shell: pwsh
+        run: |
+          $projects = @(
+            '.\Recognition.Core\Recognition.Core.csproj',
+            '.\Recognition.Infrastructure\Recognition.Infrastructure.csproj',
+            '.\Recognition.Wpf\Recognition.Wpf.csproj'
+          )
+          foreach ($project in $projects) {
+            dotnet pack $project `
+              -c Release `
+              --no-build `
+              --no-restore `
+              -o .\artifacts\packages `
+              -p:Version='${{ steps.version.outputs.value }}' `
+              -p:RepositoryCommit='${{ github.sha }}'
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          .\build\Test-Packages.ps1 `
+            -PackageDirectory .\artifacts\packages `
+            -ExpectedVersion '${{ steps.version.outputs.value }}'
+
+      - name: Upload release candidate packages
+        if: >-
+          startsWith(github.head_ref, 'release/v') ||
+          startsWith(github.ref_name, 'release/v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: packages-${{ steps.version.outputs.value }}
+          path: artifacts/packages/*
+          if-no-files-found: error
+          retention-days: 14

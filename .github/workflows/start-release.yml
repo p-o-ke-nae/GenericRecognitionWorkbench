@@ -1,0 +1,117 @@
+name: Start release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_issue:
+        description: Open Issue number labeled type:release
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  create:
+    runs-on: windows-latest
+    steps:
+      - name: Check out develop
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Validate release Issue
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          RELEASE_ISSUE: ${{ inputs.release_issue }}
+        with:
+          script: |
+            const issue_number = Number(process.env.RELEASE_ISSUE);
+            if (!Number.isSafeInteger(issue_number) || issue_number < 1) {
+              core.setFailed("release_issue must be a positive Issue number.");
+              return;
+            }
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+            });
+            const labels = issue.labels.map((label) => typeof label === "string" ? label : label.name);
+            if (issue.state !== "open" || !labels.includes("type:release")) {
+              core.setFailed(`Issue #${issue_number} must be open and labeled type:release.`);
+            }
+
+      - name: Find latest stable tag
+        id: latest
+        shell: pwsh
+        run: |
+          $tag = @(git tag --list 'v[0-9]*' --sort=-version:refname |
+            Where-Object { $_ -cmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$' } |
+            Select-Object -First 1)
+          if ($tag.Count -eq 0) { throw 'A baseline stable tag is required.' }
+          "version=$($tag[0].Substring(1))" >> $env:GITHUB_OUTPUT
+
+      - name: Collect unreleased Issue labels
+        id: metadata
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          BASE_VERSION: ${{ steps.latest.outputs.version }}
+        with:
+          script: |
+            const collect = require("./.github/scripts/release-metadata.js");
+            await collect({
+              github,
+              context,
+              core,
+              baseVersion: process.env.BASE_VERSION,
+            });
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        run: |
+          if ('${{ steps.metadata.outputs.bump }}' -eq 'None') {
+            throw 'No unreleased implementation Issues were found.'
+          }
+          $version = .\build\Resolve-Version.ps1 `
+            -BaseVersion '${{ steps.metadata.outputs.base-version }}' `
+            -Bump '${{ steps.metadata.outputs.bump }}'
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create release branch and pull request
+        id: pr
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ISSUE: ${{ inputs.release_issue }}
+        run: |
+          $version = '${{ steps.version.outputs.value }}'
+          $branch = "release/v$version"
+          if (git ls-remote --exit-code --heads origin $branch) {
+            throw "Remote branch '$branch' already exists."
+          }
+          git switch -c $branch
+          git push origin $branch
+          $body = @"
+          Release-Issue: #$env:RELEASE_ISSUE
+
+          Version: $version
+          Included Issues: ${{ steps.metadata.outputs.issues }}
+
+          This branch was created from develop. Only release stabilization changes are allowed.
+          "@
+          $url = gh pr create --base main --head $branch --title "Release v$version" --body $body
+          $number = [regex]::Match($url, '/pull/(\d+)$').Groups[1].Value
+          if (-not $number) { throw "Could not determine pull request number from '$url'." }
+          "number=$number" >> $env:GITHUB_OUTPUT
+          gh issue comment $env:RELEASE_ISSUE --body "Created release PR $url for v$version. Included implementation Issues: ${{ steps.metadata.outputs.issues }}."
+
+      - name: Dispatch CI for automated pull request
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref 'release/v${{ steps.version.outputs.value }}' -f pr_number='${{ steps.pr.outputs.number }}'
