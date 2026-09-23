@@ -2,18 +2,18 @@
 
 Issue: #
 
-For a release PR, use `Release-Issue: #`.
+release PR の場合は `Release-Issue: #` を使用してください。
 
-## Summary
+## 概要
 
-Describe the observable change and why it is needed.
+確認できる変更内容と、その変更が必要な理由を記載してください。
 
-## Validation
+## 検証
 
-- [ ] Release build succeeds
-- [ ] Tests succeed
-- [ ] Package contents were checked when packaging changed
+- [ ] Release ビルドが成功する
+- [ ] テストが成功する
+- [ ] パッケージングを変更した場合、パッケージ内容を確認した
 
-## Compatibility and release impact
+## 互換性とリリースへの影響
 
-State public API, persisted profile, native dependency, and migration impact.
+公開 API、永続化プロファイル、ネイティブ依存関係、移行への影響を記載してください。

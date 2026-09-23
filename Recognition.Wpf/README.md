@@ -1,6 +1,6 @@
 # GenericRecognition.Workbench.Wpf
 
-Reusable WPF workbench UI for Generic Recognition Workbench.
+Generic Recognition Workbench の再利用可能な WPF ワークベンチ UI を提供します。
 
 ```xml
 <Window
@@ -9,17 +9,16 @@ Reusable WPF workbench UI for Generic Recognition Workbench.
 </Window>
 ```
 
-Initialize the control after creating the infrastructure services:
+Infrastructure のサービスを作成してからコントロールを初期化します。
 
 ```csharp
 Workbench.Initialize(catalog, runner, profileStore, calibration);
 Workbench.RecognitionEventRaised += (_, result) =>
 {
-    // Bridge recognition events to application-specific behavior.
+    // 認識イベントをアプリケーション固有の処理へ渡します。
 };
 ```
 
-Use `GenericRecognition.Workbench.Abstractions` to author external components
-and `GenericRecognition.Workbench.Infrastructure` for the built-in runtime.
+外部コンポーネントの作成には `GenericRecognition.Workbench.Abstractions` を、組み込みランタイムには `GenericRecognition.Workbench.Infrastructure` を使用してください。
 
-Project documentation: https://github.com/p-o-ke-nae/GenericRecognitionWorkbench
+プロジェクト文書: https://github.com/p-o-ke-nae/GenericRecognitionWorkbench
