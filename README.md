@@ -22,8 +22,9 @@ dotnet add package GenericRecognition.Workbench.Wpf --version <VERSION>
 ```
 
 Formal packages are published to
-[nuget.org](https://www.nuget.org/profiles/p-o-ke-nae). Temporary builds from
-`develop` are available only as short-lived GitHub Actions artifacts.
+[nuget.org](https://www.nuget.org/packages?q=GenericRecognition.Workbench).
+Temporary builds from `develop` are available only as short-lived GitHub
+Actions artifacts.
 
 ## Host the WPF workbench
 
